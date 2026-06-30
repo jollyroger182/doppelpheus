@@ -1,0 +1,13 @@
+{
+  "name": "doppelpheus",
+  "module": "index.ts",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "prettier-plugin-jsdoc": "^1.8.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "private": true,
+  "type": "module"
+}
