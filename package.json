@@ -1,13 +1,25 @@
 {
-  "name": "doppelpheus",
-  "module": "index.ts",
-  "devDependencies": {
-    "@types/bun": "latest",
-    "prettier-plugin-jsdoc": "^1.8.1"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  },
-  "private": true,
-  "type": "module"
+	"name": "doppelpheus",
+	"module": "index.ts",
+	"scripts": {
+		"dev": "bun --watch --no-clear-screen ./index.ts",
+		"db:push": "drizzle-kit push",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "drizzle-kit migrate"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"@types/pg": "^8.20.0",
+		"drizzle-kit": "^1.0.0-rc.4",
+		"prettier-plugin-jsdoc": "^1.8.1"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	},
+	"private": true,
+	"type": "module",
+	"dependencies": {
+		"drizzle-orm": "^1.0.0-rc.4",
+		"pg": "^8.22.0"
+	}
 }
