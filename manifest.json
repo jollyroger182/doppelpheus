@@ -1,0 +1,58 @@
+{
+	"display_information": {
+		"name": "doppelpheus (dev)"
+	},
+	"features": {
+		"bot_user": {
+			"display_name": "doppelpheus (dev)",
+			"always_online": false
+		}
+	},
+	"oauth_config": {
+		"scopes": {
+			"bot": [
+				"canvases:read",
+				"canvases:write",
+				"channels:write.topic",
+				"commands",
+				"channels:write.invites",
+				"channels:manage",
+				"chat:write",
+				"chat:write.customize",
+				"files:read",
+				"files:write",
+				"channels:history",
+				"groups:history",
+				"channels:read",
+				"groups:read",
+				"groups:write.invites",
+				"groups:write.topic",
+				"links.embed:write",
+				"pins:write",
+				"usergroups:read",
+				"usergroups:write",
+				"users.profile:read",
+				"users:read",
+				"users:read.email",
+				"mpim:read"
+			]
+		},
+		"pkce_enabled": false
+	},
+	"settings": {
+		"event_subscriptions": {
+			"request_url": "https://doppelpheus.example.com/slack/events",
+			"bot_events": [
+				"member_joined_channel",
+				"member_left_channel",
+				"message.channels",
+				"message.groups",
+				"subteam_members_changed"
+			]
+		},
+		"org_deploy_enabled": false,
+		"socket_mode_enabled": false,
+		"token_rotation_enabled": false,
+		"is_mcp_enabled": false
+	}
+}
