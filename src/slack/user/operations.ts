@@ -1,9 +1,10 @@
 import { actions, blocks, button, section } from 'slack.ts'
+import { LINK_HACKATIME_MESSAGE, WELCOME_MESSAGE } from '../../consts'
 import { createAuthAttempt } from '../../queries/auth-attempt'
-import { userBot } from '../client'
 import { createUser } from '../../queries/user'
+import { userBot } from '../client'
 
-const { HCA_CLIENT_ID, MAIN_CHANNEL, HACKATIME_CLIENT_ID, EXTERNAL_URL } = process.env
+const { HCA_CLIENT_ID, HACKATIME_CLIENT_ID, EXTERNAL_URL } = process.env
 
 export async function sendHCAAuthMessage(user: string) {
 	await createUser(user)
@@ -16,10 +17,12 @@ export async function sendHCAAuthMessage(user: string) {
 	url.searchParams.set('redirect_uri', `${EXTERNAL_URL}/auth/hackclub/callback`)
 	url.searchParams.set('state', state)
 
-	const text = `hi hi! welcome to <#${MAIN_CHANNEL}>! i see that you haven't linked your HCA account yet, click the button below to do that!`
 	return userBot.user(user).send({
-		text,
-		blocks: blocks(section(text), actions(button('link hca').style('primary').url(url.toString()))),
+		text: WELCOME_MESSAGE,
+		blocks: blocks(
+			section(WELCOME_MESSAGE),
+			actions(button('link hca').style('primary').url(url.toString()).id('link_hca')),
+		),
 	})
 }
 
@@ -33,12 +36,19 @@ export async function sendHackatimeAuthMessage(user: string) {
 	url.searchParams.set('redirect_uri', `${EXTERNAL_URL}/auth/hackatime/callback`)
 	url.searchParams.set('state', state)
 
-	const text = `now that your HCA is linked, let's link your hackatime account! this lets us see how many hours you've been working on your project :D`
 	await userBot.user(user).send({
-		text,
+		text: LINK_HACKATIME_MESSAGE,
 		blocks: blocks(
-			section(text),
-			actions(button('link hackatime').style('primary').url(url.toString())),
+			section(LINK_HACKATIME_MESSAGE),
+			actions(button('link hackatime').style('primary').url(url.toString()).id('link_hackatime')),
 		),
 	})
+}
+
+export async function sendIneligibleMessage(user: string) {
+	await userBot
+		.user(user)
+		.send(
+			`aww, it seems you haven't verified your identity yet or you're ineligible for ysws... check https://auth.hackclub.com for more info!`,
+		)
 }
