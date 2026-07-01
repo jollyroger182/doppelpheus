@@ -1,3 +1,5 @@
+import { handleHackatimeCallback } from './src/api/auth/hackatime'
+import { handleHCACallback } from './src/api/auth/hackclub'
 import { handleWelcome } from './src/api/welcome'
 import './src/slack/bot/listeners'
 import { app, bot } from './src/slack/client'
@@ -9,7 +11,11 @@ await bot.start()
 Bun.serve({
 	routes: {
 		'/slack/events': (req) => bot.receiver.fetch(req),
+
 		'/api/welcome': { POST: handleWelcome },
+
+		'/auth/hackclub/callback': handleHCACallback,
+		'/auth/hackatime/callback': handleHackatimeCallback,
 	},
 	port: process.env.PORT || '8000',
 })
