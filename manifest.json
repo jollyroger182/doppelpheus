@@ -3,38 +3,48 @@
 		"name": "doppelpheus (dev)"
 	},
 	"features": {
+		"app_home": {
+			"home_tab_enabled": true,
+			"messages_tab_enabled": false,
+			"messages_tab_read_only_enabled": false
+		},
 		"bot_user": {
 			"display_name": "doppelpheus (dev)",
 			"always_online": false
 		}
 	},
 	"oauth_config": {
+		"redirect_urls": ["http://localhost:5555"],
 		"scopes": {
+			"user": ["chat:write"],
 			"bot": [
+				"im:read",
 				"canvases:read",
 				"canvases:write",
-				"channels:write.topic",
-				"commands",
-				"channels:write.invites",
+				"channels:history",
 				"channels:manage",
+				"channels:read",
+				"channels:write.invites",
+				"channels:write.topic",
 				"chat:write",
 				"chat:write.customize",
 				"files:read",
 				"files:write",
-				"channels:history",
 				"groups:history",
-				"channels:read",
 				"groups:read",
 				"groups:write.invites",
 				"groups:write.topic",
+				"im:history",
 				"links.embed:write",
+				"mpim:history",
+				"mpim:read",
 				"pins:write",
 				"usergroups:read",
 				"usergroups:write",
 				"users.profile:read",
 				"users:read",
 				"users:read.email",
-				"mpim:read"
+				"im:write"
 			]
 		},
 		"pkce_enabled": false
@@ -47,8 +57,15 @@
 				"member_left_channel",
 				"message.channels",
 				"message.groups",
+				"message.im",
+				"message.mpim",
 				"subteam_members_changed"
 			]
+		},
+		"interactivity": {
+			"is_enabled": true,
+			"request_url": "https://doppelpheus.example.com/slack/events",
+			"message_menu_options_url": "https://doppelpheus.example.com/slack/events"
 		},
 		"org_deploy_enabled": false,
 		"socket_mode_enabled": false,
