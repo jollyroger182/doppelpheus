@@ -1,6 +1,7 @@
-import { getUserByAuthState, upsertUser } from '../../queries/user'
-import { app } from '../../slack/client'
-import { sendHackatimeAuthMessage } from '../../slack/user/operations'
+import { getAuthAttemptWithUserById, markAuthAttemptUsed } from '../../queries/auth-attempt'
+import { upsertUser } from '../../queries/user'
+import { sendHackatimeAuthMessage, sendHCAAuthMessage } from '../../slack/user/operations'
+import { redirectToDM } from '../../utils'
 
 const { HCA_CLIENT_ID, HCA_CLIENT_SECRET, EXTERNAL_URL } = process.env
 
@@ -10,8 +11,13 @@ export async function handleHCACallback(req: Request) {
 	const state = url.searchParams.get('state')
 	if (!code || !state) return Response.json({ error: 'invalid params' }, 400)
 
-	const user = await getUserByAuthState(state)
-	if (!user) return Response.json({ error: 'invalid state' }, 400)
+	const attempt = await getAuthAttemptWithUserById(state)
+	if (!attempt) return Response.json({ error: 'invalid state' }, 400)
+	const user = attempt.user
+	if (attempt.used) {
+		await sendHCAAuthMessage(user.id)
+		return redirectToDM(user.id)
+	}
 
 	const resp = await fetch('https://auth.hackclub.com/oauth/token', {
 		method: 'POST',
@@ -29,12 +35,10 @@ export async function handleHCACallback(req: Request) {
 	}
 	const { access_token } = (await resp.json()) as { access_token: string }
 
-	await upsertUser({ id: user.id, hcaToken: access_token, authState: null })
+	await markAuthAttemptUsed(state)
+	await upsertUser({ id: user.id, hcaToken: access_token })
 
 	await sendHackatimeAuthMessage(user.id)
 
-	const {
-		channel: { id: dmChannelId },
-	} = await app.request('conversations.open', { users: user.id })
-	return Response.redirect(`https://hackclub.enterprise.slack.com/archives/${dmChannelId}`)
+	return redirectToDM(user.id)
 }

@@ -1,5 +1,8 @@
-import { getUserByAuthState, upsertUser } from '../../queries/user'
+import { getAuthAttemptWithUserById, markAuthAttemptUsed } from '../../queries/auth-attempt'
+import { upsertUser } from '../../queries/user'
 import { app } from '../../slack/client'
+import { sendHackatimeAuthMessage } from '../../slack/user/operations'
+import { redirectToDM } from '../../utils'
 
 const { HACKATIME_CLIENT_ID, HACKATIME_CLIENT_SECRET, EXTERNAL_URL } = process.env
 
@@ -9,8 +12,13 @@ export async function handleHackatimeCallback(req: Request) {
 	const state = url.searchParams.get('state')
 	if (!code || !state) return Response.json({ error: 'invalid params' }, 400)
 
-	const user = await getUserByAuthState(state)
-	if (!user) return Response.json({ error: 'invalid state' }, 400)
+	const attempt = await getAuthAttemptWithUserById(state)
+	if (!attempt) return Response.json({ error: 'invalid state' }, 400)
+	const user = attempt.user
+	if (attempt.used) {
+		await sendHackatimeAuthMessage(user.id)
+		return redirectToDM(user.id)
+	}
 
 	const resp = await fetch('https://hackatime.hackclub.com/oauth/token', {
 		method: 'POST',
@@ -23,12 +31,13 @@ export async function handleHackatimeCallback(req: Request) {
 		}),
 	})
 	if (!resp.ok) {
-		console.error('failed to exchange hca token', await resp.text())
+		console.error('failed to exchange hackatime token', await resp.text())
 		return Response.json({ error: 'upstream error' }, 500)
 	}
 	const { access_token } = (await resp.json()) as { access_token: string }
 
-	await upsertUser({ id: user.id, hackatimeToken: access_token, authState: null })
+	await markAuthAttemptUsed(state)
+	await upsertUser({ id: user.id, hackatimeToken: access_token })
 
 	const {
 		channel: { id: dmChannelId },

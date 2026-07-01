@@ -1,10 +1,18 @@
-import { index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
 	id: text().primaryKey(),
 	hcaToken: text(),
 	hackatimeToken: text(),
-	authState: text(),
+})
+
+export const authAttempts = pgTable('auth_attempts', {
+	id: uuid().primaryKey().defaultRandom(),
+	userId: text()
+		.notNull()
+		.references(() => users.id, { onDelete: 'cascade' }),
+	used: boolean().notNull().default(false),
+	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 })
 
 export const projects = pgTable(
