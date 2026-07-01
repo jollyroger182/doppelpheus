@@ -1,4 +1,5 @@
 import { getUserByAuthState, upsertUser } from '../../queries/user'
+import { app } from '../../slack/client'
 
 const { HACKATIME_CLIENT_ID, HACKATIME_CLIENT_SECRET, EXTERNAL_URL } = process.env
 
@@ -29,5 +30,8 @@ export async function handleHackatimeCallback(req: Request) {
 
 	await upsertUser({ id: user.id, hackatimeToken: access_token, authState: null })
 
-	return Response.json({ success: true })
+	const {
+		channel: { id: dmChannelId },
+	} = await app.request('conversations.open', { users: user.id })
+	return Response.redirect(`https://hackclub.enterprise.slack.com/archives/${dmChannelId}`)
 }
