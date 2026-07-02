@@ -6,7 +6,7 @@
 		"app_home": {
 			"home_tab_enabled": true,
 			"messages_tab_enabled": false,
-			"messages_tab_read_only_enabled": false
+			"messages_tab_read_only_enabled": true
 		},
 		"bot_user": {
 			"display_name": "doppelpheus (dev)",
@@ -16,7 +16,7 @@
 	"oauth_config": {
 		"redirect_urls": ["http://localhost:5555"],
 		"scopes": {
-			"user": ["chat:write"],
+			"user": ["chat:write", "files:write"],
 			"bot": [
 				"im:read",
 				"canvases:read",

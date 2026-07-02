@@ -69,7 +69,10 @@ export async function buildHomeView(userId: string) {
 					)
 				: section('_no activity yet_'),
 			divider(),
-			actions(button(plain(':arrows_counterclockwise: refresh').emoji()).id('admin.refresh_home')),
+			actions(
+				button(plain(':outbox_tray: upload file as doppel').emoji()).id('admin.upload_file'),
+				button(plain(':arrows_counterclockwise: refresh').emoji()).id('admin.refresh_home'),
+			),
 		),
 	}
 }

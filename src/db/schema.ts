@@ -35,6 +35,12 @@ export const config = pgTable('config', {
 	value: text().notNull(),
 })
 
+export const uploadedFiles = pgTable('uploaded_files', {
+	key: text().primaryKey(),
+	fileId: text().notNull(),
+	updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+})
+
 export const shopItems = pgTable('shop_items', {
 	id: uuid().primaryKey().defaultRandom(),
 	name: text().notNull(),

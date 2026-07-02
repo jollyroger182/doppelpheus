@@ -1,7 +1,8 @@
-import { actions, blocks, button, section } from 'slack.ts'
+import { actions, blocks, button, plain, section } from 'slack.ts'
 import { ALL_SET_MESSAGE, LINK_HACKATIME_MESSAGE, WELCOME_MESSAGE } from '../../consts'
 import { logAudit } from '../../queries/audit-log'
 import { createAuthAttempt } from '../../queries/auth-attempt'
+import { getUploadedFileId } from '../../queries/uploaded-file'
 import { createUser } from '../../queries/user'
 import { userBot } from '../client'
 
@@ -19,12 +20,28 @@ export async function sendHCAAuthMessage(user: string) {
 	url.searchParams.set('redirect_uri', `${EXTERNAL_URL}/auth/hackclub/callback`)
 	url.searchParams.set('state', state)
 
+	const welcomeImageId = await getUploadedFileId('welcome')
+
 	return userBot.user(user).send({
 		text: WELCOME_MESSAGE,
-		blocks: blocks(
-			section(WELCOME_MESSAGE),
-			actions(button('link hca').style('primary').url(url.toString()).id('link_hca').value(state)),
-		),
+		blocks: [
+			...(welcomeImageId
+				? [
+						{
+							type: 'image' as const,
+							title: plain('welcome :3').build(),
+							slack_file: { id: welcomeImageId },
+							alt_text: 'welcome :3',
+						},
+					]
+				: []),
+			...blocks(
+				section(WELCOME_MESSAGE),
+				actions(
+					button('link hca').style('primary').url(url.toString()).id('link_hca').value(state),
+				),
+			),
+		],
 	})
 }
 
