@@ -53,6 +53,7 @@
 		"event_subscriptions": {
 			"request_url": "https://doppelpheus.example.com/slack/events",
 			"bot_events": [
+				"app_home_opened",
 				"member_joined_channel",
 				"member_left_channel",
 				"message.channels",

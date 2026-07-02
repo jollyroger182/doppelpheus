@@ -1,8 +1,13 @@
+import { desc } from 'drizzle-orm'
 import { db } from '../db'
 import { auditLog } from '../db/schema'
 
 export async function createAuditLog(data: typeof auditLog.$inferInsert) {
 	return await db.insert(auditLog).values(data).returning()
+}
+
+export async function getRecentAuditLog(limit = 10) {
+	return db.select().from(auditLog).orderBy(desc(auditLog.createdAt)).limit(limit)
 }
 
 export function logAudit(action: string, user?: string | null, details?: unknown) {
