@@ -1,3 +1,4 @@
+import { logAudit } from '../../queries/audit-log'
 import { getAuthAttemptWithUserById, markAuthAttemptUsed } from '../../queries/auth-attempt'
 import { upsertUser } from '../../queries/user'
 import {
@@ -13,12 +14,17 @@ export async function handleHCACallback(req: Request) {
 	const url = new URL(req.url)
 	const code = url.searchParams.get('code')
 	const state = url.searchParams.get('state')
-	if (!code || !state) return Response.json({ error: 'invalid params' }, 400)
+	if (!code || !state) {
+		return Response.json({ error: 'invalid params' }, 400)
+	}
 
 	const attempt = await getAuthAttemptWithUserById(state)
-	if (!attempt) return Response.json({ error: 'invalid state' }, 400)
+	if (!attempt) {
+		return Response.json({ error: 'invalid state' }, 400)
+	}
 	const user = attempt.user
 	if (attempt.used) {
+		logAudit('auth.hca.callback_replay', user.id, { state })
 		await sendHCAAuthMessage(user.id)
 		return redirectToDM(user.id)
 	}
@@ -34,7 +40,8 @@ export async function handleHCACallback(req: Request) {
 		}),
 	})
 	if (!resp.ok) {
-		console.error('failed to exchange hca token', await resp.text())
+		const errText = await resp.text()
+		console.error('failed to exchange hca token', errText)
 		return Response.json({ error: 'upstream error' }, 500)
 	}
 	const data = (await resp.json()) as { access_token: string }
@@ -42,11 +49,15 @@ export async function handleHCACallback(req: Request) {
 
 	const profile = await getHCAProfile(data.access_token)
 	if (!profile.identity.ysws_eligible) {
+		logAudit('auth.hca.ineligible', user.id, {
+			verification_status: profile.identity.verification_status,
+		})
 		await sendIneligibleMessage(user.id)
 		return redirectToDM(user.id)
 	}
 
 	await upsertUser({ id: user.id, hcaToken: data.access_token })
+	logAudit('auth.hca.linked', user.id, { hca_id: profile.identity.id })
 
 	await sendHackatimeAuthMessage(user.id)
 

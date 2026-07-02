@@ -1,3 +1,4 @@
+import { logAudit } from '../../queries/audit-log'
 import { getAuthAttemptWithUserById, markAuthAttemptUsed } from '../../queries/auth-attempt'
 import { upsertUser } from '../../queries/user'
 import { app } from '../../slack/client'
@@ -10,12 +11,17 @@ export async function handleHackatimeCallback(req: Request) {
 	const url = new URL(req.url)
 	const code = url.searchParams.get('code')
 	const state = url.searchParams.get('state')
-	if (!code || !state) return Response.json({ error: 'invalid params' }, 400)
+	if (!code || !state) {
+		return Response.json({ error: 'invalid params' }, 400)
+	}
 
 	const attempt = await getAuthAttemptWithUserById(state)
-	if (!attempt) return Response.json({ error: 'invalid state' }, 400)
+	if (!attempt) {
+		return Response.json({ error: 'invalid state' }, 400)
+	}
 	const user = attempt.user
 	if (attempt.used) {
+		logAudit('auth.hackatime.callback_replay', user.id, { state })
 		await sendHackatimeAuthMessage(user.id)
 		return redirectToDM(user.id)
 	}
@@ -31,13 +37,16 @@ export async function handleHackatimeCallback(req: Request) {
 		}),
 	})
 	if (!resp.ok) {
-		console.error('failed to exchange hackatime token', await resp.text())
+		const errText = await resp.text()
+		console.error('failed to exchange hackatime token', errText)
+		logAudit('auth.hackatime.exchange_failed', user.id, { status: resp.status })
 		return Response.json({ error: 'upstream error' }, 500)
 	}
 	const { access_token } = (await resp.json()) as { access_token: string }
 
 	await markAuthAttemptUsed(state)
 	await upsertUser({ id: user.id, hackatimeToken: access_token })
+	logAudit('auth.hackatime.linked', user.id)
 	await sendAllSetMessage(user.id)
 
 	const {

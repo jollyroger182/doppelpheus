@@ -1,5 +1,6 @@
 import { actions, blocks, button, section } from 'slack.ts'
 import { ALL_SET_MESSAGE, LINK_HACKATIME_MESSAGE, WELCOME_MESSAGE } from '../../consts'
+import { logAudit } from '../../queries/audit-log'
 import { createAuthAttempt } from '../../queries/auth-attempt'
 import { createUser } from '../../queries/user'
 import { userBot } from '../client'
@@ -9,6 +10,7 @@ const { HCA_CLIENT_ID, HACKATIME_CLIENT_ID, EXTERNAL_URL } = process.env
 export async function sendHCAAuthMessage(user: string) {
 	await createUser(user)
 	const { id: state } = await createAuthAttempt(user)
+	logAudit('auth.hca.message_sent', user, { state })
 
 	const url = new URL(
 		`https://auth.hackclub.com/oauth/authorize?response_type=code&scope=openid+email+name+profile+phone+birthdate+address+verification_status+slack_id+basic_info`,
@@ -21,13 +23,14 @@ export async function sendHCAAuthMessage(user: string) {
 		text: WELCOME_MESSAGE,
 		blocks: blocks(
 			section(WELCOME_MESSAGE),
-			actions(button('link hca').style('primary').url(url.toString()).id('link_hca')),
+			actions(button('link hca').style('primary').url(url.toString()).id('link_hca').value(state)),
 		),
 	})
 }
 
 export async function sendHackatimeAuthMessage(user: string) {
 	const { id: state } = await createAuthAttempt(user)
+	logAudit('auth.hackatime.message_sent', user, { state })
 
 	const url = new URL(
 		`https://hackatime.hackclub.com/oauth/authorize?response_type=code&scope=profile+read`,
@@ -40,7 +43,13 @@ export async function sendHackatimeAuthMessage(user: string) {
 		text: LINK_HACKATIME_MESSAGE,
 		blocks: blocks(
 			section(LINK_HACKATIME_MESSAGE),
-			actions(button('link hackatime').style('primary').url(url.toString()).id('link_hackatime')),
+			actions(
+				button('link hackatime')
+					.style('primary')
+					.url(url.toString())
+					.id('link_hackatime')
+					.value(state),
+			),
 		),
 	})
 }
