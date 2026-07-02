@@ -5,31 +5,28 @@ import { bot, userBot } from '../client'
 
 const { SLACK_BOT_TOKEN, BTS_CHANNEL } = process.env
 
-export const UPLOAD_MODAL_CALLBACK = 'admin.uploaded_file'
 export const UPLOAD_FILE_BLOCK = 'upload_file'
 export const UPLOAD_FILE_ACTION = 'file'
 export const UPLOAD_KEY_BLOCK = 'upload_key'
 export const UPLOAD_KEY_ACTION = 'key'
 
 export const uploadModalView = {
-	type: 'modal' as const,
-	callback_id: UPLOAD_MODAL_CALLBACK,
+	type: 'modal',
 	title: plain('upload as doppel').build(),
 	submit: plain('upload').build(),
 	close: plain('cancel').build(),
 	blocks: blocks(
 		section('pick a file — it will be re-uploaded as the doppel user account.'),
-		input(
-			select(...IMAGE_KEYS.map((k) => option(k).value(k))).id(UPLOAD_KEY_ACTION),
-		)
+		input(select(...IMAGE_KEYS.map((k) => option(k).value(k))).id(UPLOAD_KEY_ACTION))
 			.label('image key')
 			.hint('the uploaded file will replace the image at this key')
 			.id(UPLOAD_KEY_BLOCK),
 		input(fileInput().id(UPLOAD_FILE_ACTION).max(1)).label('file').id(UPLOAD_FILE_BLOCK),
 	),
-}
+} as const
 
-export async function saveUploadedFileForKey(key: ImageKey, fileId: string) {
+export async function saveUploadedFileForKey(key: ImageKey, fileId: string, userId: string) {
+	logAudit('admin.upload.saved', userId, { fileId, key })
 	await setUploadedFileId(key, fileId)
 }
 
@@ -65,10 +62,6 @@ export async function reuploadSubmittedFileAsUser(file: SubmittedFile) {
 		file: uploaded.id,
 	})) as { file?: { permalink_public?: string } }
 
-	await bot.request('files.delete', { file: file.id }).catch((err) => {
-		console.error('failed to delete original bot-uploaded file', err)
-	})
-
 	return {
 		...uploaded,
 		permalink_public: publicShare.file?.permalink_public ?? uploaded.permalink_public,
@@ -79,10 +72,6 @@ export async function notifyUploadResult(
 	userId: string,
 	uploaded: { name: string; permalink: string; url_private: string; permalink_public?: string },
 ) {
-	logAudit('admin.upload.uploaded', userId, {
-		filename: uploaded.name,
-		channel: BTS_CHANNEL,
-	})
 	const publicLine = uploaded.permalink_public ? `\n_public:_ ${uploaded.permalink_public}` : ''
 	await bot
 		.user(userId)
@@ -93,6 +82,5 @@ export async function notifyUploadResult(
 
 export async function notifyUploadError(userId: string, err: unknown) {
 	const message = err instanceof Error ? err.message : String(err)
-	logAudit('admin.upload.failed', userId, { message })
 	await bot.user(userId).send(`file upload failed: ${message}`)
 }
