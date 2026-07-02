@@ -30,6 +30,11 @@ export const projects = pgTable(
 	(table) => [index().on(table.userId)],
 )
 
+export const config = pgTable('config', {
+	key: text().primaryKey(),
+	value: text().notNull(),
+})
+
 export const shopItems = pgTable('shop_items', {
 	id: uuid().primaryKey().defaultRandom(),
 	name: text().notNull(),
