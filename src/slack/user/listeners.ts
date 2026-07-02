@@ -1,5 +1,6 @@
 import { getUserWithProjectsById } from '../../queries/user'
 import { app } from '../client'
+import { findKeywordHandler } from './keywords'
 import { sendHackatimeAuthMessage, sendHCAAuthMessage } from './operations'
 
 const { SLACK_USER_ID } = process.env
@@ -17,4 +18,7 @@ app.on('message:normal', async (message) => {
 	if (!user.hackatimeToken) {
 		return sendHackatimeAuthMessage(user.id)
 	}
+
+	const handler = findKeywordHandler(message.text ?? '')
+	await handler.send(user.id)
 })

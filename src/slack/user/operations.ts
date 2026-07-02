@@ -1,5 +1,5 @@
 import { actions, blocks, button, section } from 'slack.ts'
-import { LINK_HACKATIME_MESSAGE, WELCOME_MESSAGE } from '../../consts'
+import { ALL_SET_MESSAGE, LINK_HACKATIME_MESSAGE, WELCOME_MESSAGE } from '../../consts'
 import { createAuthAttempt } from '../../queries/auth-attempt'
 import { createUser } from '../../queries/user'
 import { userBot } from '../client'
@@ -51,4 +51,8 @@ export async function sendIneligibleMessage(user: string) {
 		.send(
 			`aww, it seems you haven't verified your identity yet or you're ineligible for ysws... check https://auth.hackclub.com for more info!`,
 		)
+}
+
+export async function sendAllSetMessage(user: string) {
+	await userBot.user(user).send(ALL_SET_MESSAGE)
 }

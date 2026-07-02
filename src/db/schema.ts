@@ -1,4 +1,4 @@
-import { boolean, index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, pgTable, real, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
 	id: text().primaryKey(),
@@ -29,6 +29,15 @@ export const projects = pgTable(
 	},
 	(table) => [index().on(table.userId)],
 )
+
+export const shopItems = pgTable('shop_items', {
+	id: uuid().primaryKey().defaultRandom(),
+	name: text().notNull(),
+	description: text().notNull(),
+	priceMinutes: integer().notNull(),
+	enabled: boolean().notNull().default(false),
+	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+})
 
 export const auditLog = pgTable(
 	'audit_log',

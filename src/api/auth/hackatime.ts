@@ -1,7 +1,7 @@
 import { getAuthAttemptWithUserById, markAuthAttemptUsed } from '../../queries/auth-attempt'
 import { upsertUser } from '../../queries/user'
 import { app } from '../../slack/client'
-import { sendHackatimeAuthMessage } from '../../slack/user/operations'
+import { sendAllSetMessage, sendHackatimeAuthMessage } from '../../slack/user/operations'
 import { redirectToDM } from '../../utils'
 
 const { HACKATIME_CLIENT_ID, HACKATIME_CLIENT_SECRET, EXTERNAL_URL } = process.env
@@ -38,6 +38,7 @@ export async function handleHackatimeCallback(req: Request) {
 
 	await markAuthAttemptUsed(state)
 	await upsertUser({ id: user.id, hackatimeToken: access_token })
+	await sendAllSetMessage(user.id)
 
 	const {
 		channel: { id: dmChannelId },
