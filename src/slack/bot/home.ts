@@ -57,8 +57,8 @@ export async function buildHomeView(userId: string) {
 							...recentLog.map((entry) =>
 								R.section(
 									R.text(entry.action).bold(),
-									entry.user ? R.text(` · ${entry.user}`) : R.text(''),
-									entry.details ? R.text(` — ${entry.details}`) : R.text(''),
+									...(entry.user ? [R.text(` · `), R.user(entry.user)] : []),
+									...(entry.details ? [R.text(` — ${entry.details}`)] : []),
 									R.text(` (${entry.createdAt.toISOString()})`),
 								),
 							),
