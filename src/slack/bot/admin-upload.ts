@@ -3,7 +3,7 @@ import { logAudit } from '../../queries/audit-log'
 import { IMAGE_KEYS, setUploadedFileId, type ImageKey } from '../../queries/uploaded-file'
 import { bot, userBot } from '../client'
 
-const { SLACK_BOT_TOKEN, BTS_CHANNEL } = process.env
+const { SLACK_BOT_TOKEN } = process.env
 
 export const UPLOAD_FILE_BLOCK = 'upload_file'
 export const UPLOAD_FILE_ACTION = 'file'
@@ -48,19 +48,20 @@ export async function reuploadSubmittedFileAsUser(file: SubmittedFile) {
 		length: body.byteLength,
 		filename: file.name,
 	})
-	const uploadResp = await fetch(upload_url, { method: 'POST', body })
+	const uploadData = new FormData()
+	uploadData.append('filename', new Blob([body]), file.name)
+	const uploadResp = await fetch(upload_url, { method: 'POST', body: uploadData })
 	if (!uploadResp.ok) throw new Error(`upload failed with status ${uploadResp.status}`)
 
 	const complete = await userBot.request('files.completeUploadExternal', {
 		files: [{ id: file_id }],
-		channel_id: BTS_CHANNEL || undefined,
 	})
 	const uploaded = complete.files[0]
 	if (!uploaded) throw new Error('completeUploadExternal returned no file')
 
-	const publicShare = (await userBot.request('files.sharedPublicURL', {
+	const publicShare = await userBot.request('files.sharedPublicURL', {
 		file: uploaded.id,
-	})) as { file?: { permalink_public?: string } }
+	})
 
 	return {
 		...uploaded,

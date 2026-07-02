@@ -3,6 +3,7 @@ import { userBot } from '../client'
 import { FAQ_CANVAS } from '../../consts'
 import { CONFIG_KEYS, isFeatureEnabled } from '../../queries/config'
 import { getEnabledShopItems } from '../../queries/shop-item'
+import { buildProjectsView } from './views/projects'
 
 const SHOP_NOT_READY_MESSAGE = 'the prizes are not ready yet! please check back later :3'
 
@@ -36,12 +37,7 @@ export const keywordHandlers: KeywordHandler[] = [
 	},
 	{
 		keywords: ['projects', 'project'],
-		send: (userId) =>
-			userBot
-				.user(userId)
-				.send(
-					"_looks through records_\n\nyou haven't created any projects yet!\n\n(project creation coming soon :3)",
-				),
+		send: async (userId) => userBot.user(userId).send(await buildProjectsView(userId)),
 	},
 	{
 		keywords: ['shop', 'prizes', 'prize'],

@@ -24,6 +24,7 @@ export const projects = pgTable(
 			.references(() => users.id),
 		name: text().notNull(),
 		description: text().notNull(),
+		screenshotFileId: text(),
 		playableUrl: text(),
 		codeUrl: text(),
 	},

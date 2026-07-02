@@ -2,8 +2,7 @@ import { blocks, context, section } from 'slack.ts'
 import { LINK_HACKATIME_MESSAGE, WELCOME_MESSAGE } from '../../consts'
 import { logAudit } from '../../queries/audit-log'
 import { CONFIG_KEYS, isFeatureEnabled, setConfig } from '../../queries/config'
-import { bot } from '../client'
-import { IMAGE_KEYS } from '../../queries/uploaded-file'
+import { app, bot, userBot } from '../client'
 import {
 	notifyUploadError,
 	notifyUploadResult,
@@ -15,6 +14,15 @@ import {
 	UPLOAD_KEY_BLOCK,
 	uploadModalView,
 } from './admin-upload'
+import { deleteProject } from '../../queries/project'
+import {
+	extractProjectFormValues,
+	extractScreenshotFile,
+	getProjectForEdit,
+	projectModalView,
+	upsertProjectFromForm,
+} from './modals/project'
+import { buildProjectsView } from '../user/views/projects'
 import { buildHomeView, isAdmin } from './home'
 
 bot.on('action:button.link_hca', async (event) => {
@@ -37,6 +45,72 @@ bot.on('action:button.link_hackatime', async (event) => {
 			context('need the button again? just send me any message!'),
 		),
 	})
+})
+
+// projects
+
+bot.on('action:button.project.add', async (event) => {
+	if (event.event.container.type !== 'message') return
+	const { channel_id, message_ts } = event.event.container
+
+	const userId = event.event.user.id
+
+	const modal = await event.respond.modal(projectModalView())
+	let submission
+	try {
+		submission = await modal.wait.submit()
+	} catch (err) {
+		return
+	}
+
+	const values = submission.values as any
+	const form = extractProjectFormValues(values)
+	const screenshot = extractScreenshotFile(values)
+	await upsertProjectFromForm(userId, null, form, screenshot)
+	await userBot
+		.channel(channel_id)
+		.message(message_ts)
+		.edit(await buildProjectsView(userId))
+})
+
+bot.on('action:button.project.edit', async (event) => {
+	if (event.event.container.type !== 'message') return
+	const { channel_id, message_ts } = event.event.container
+
+	const userId = event.event.user.id
+	const projectId = Number(event.value)
+	if (!Number.isFinite(projectId)) return
+	const project = await getProjectForEdit(userId, projectId)
+	if (!project) return
+
+	const modal = await event.respond.modal(projectModalView(project))
+	let submission
+	try {
+		submission = await modal.wait.submit()
+	} catch (err) {
+		return
+	}
+
+	const values = submission.values as any
+	const form = extractProjectFormValues(values)
+	const screenshot = extractScreenshotFile(values)
+	await upsertProjectFromForm(userId, projectId, form, screenshot)
+	await userBot
+		.channel(channel_id)
+		.message(message_ts)
+		.edit(await buildProjectsView(userId))
+})
+
+bot.on('action:button.project.delete', async (event) => {
+	const userId = event.event.user.id
+	const projectId = Number(event.value)
+	if (!Number.isFinite(projectId)) return
+	const project = await getProjectForEdit(userId, projectId)
+	if (!project) return
+
+	await deleteProject(projectId)
+	logAudit('project.deleted', userId, { id: projectId })
+	await event.respond.edit(await buildProjectsView(userId))
 })
 
 // admin
@@ -70,7 +144,12 @@ bot.on('action:button.admin.upload_file', async (event) => {
 	if (!isAdmin(userId)) return
 	const modal = await event.respond.modal(uploadModalView)
 
-	const submission = await modal.wait.submit()
+	let submission
+	try {
+		submission = await modal.wait.submit()
+	} catch (err) {
+		return
+	}
 
 	const values = submission.values
 	const fileValue = values[UPLOAD_FILE_BLOCK][UPLOAD_FILE_ACTION]
