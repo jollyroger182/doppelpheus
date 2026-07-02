@@ -59,7 +59,10 @@ export async function buildHomeView(userId: string) {
 									R.text(entry.action).bold(),
 									...(entry.user ? [R.text(` · `), R.user(entry.user)] : []),
 									...(entry.details ? [R.text(` — ${entry.details}`)] : []),
-									R.text(` (${entry.createdAt.toISOString()})`),
+									R.text(` `),
+									R.date(entry.createdAt, '({date_pretty} at {time})').fallback(
+										entry.createdAt.toISOString(),
+									),
 								),
 							),
 						),
