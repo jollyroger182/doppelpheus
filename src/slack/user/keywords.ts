@@ -52,16 +52,18 @@ export const keywordHandlers: KeywordHandler[] = [
 				return userBot.user(userId).send(SHOP_NOT_READY_MESSAGE)
 			}
 
-			const text = 'the current prizes here! this list might be updated throughout the event :3'
+			const text = 'the current prizes are here! this list might be updated throughout the event :3'
 			return userBot.user(userId).send({
 				text,
 				blocks: blocks(
 					section(text),
 					richText(
-						...items.map((i) =>
-							R.section(
-								R.text(i.name).bold(),
-								` (${(i.priceMinutes / 60).toFixed(1)}h): ${i.description}`,
+						R.list(
+							...items.map((i) =>
+								R.section(
+									R.text(i.name).bold(),
+									` (${(i.priceMinutes / 60).toFixed(1)}h): ${i.description}`,
+								),
 							),
 						),
 					),

@@ -1,6 +1,8 @@
+import type { AnyBlock } from '@slack/types'
 import { actions, blocks, button, divider, header, plain, R, richText, section } from 'slack.ts'
 import { getRecentAuditLog } from '../../queries/audit-log'
 import { CONFIG_KEYS, isFeatureEnabled } from '../../queries/config'
+import { getAllShopItems, type ShopItem } from '../../queries/shop-item'
 import { getProgramStats } from '../../queries/stats'
 
 const { ADMIN_USER_IDS } = process.env
@@ -16,6 +18,25 @@ export function isAdmin(userId: string) {
 	return ADMINS.has(userId)
 }
 
+function renderShopItems(items: ShopItem[]) {
+	if (!items.length) return [section('_no shop items yet_')]
+	return items.flatMap((item) => {
+		const priceHours = (item.priceMinutes / 60).toFixed(1).replace(/\.0$/, '')
+		const status = item.enabled ? ':white_check_mark: enabled' : ':x: disabled'
+		return [
+			section(`*${item.name}* _(${priceHours}h)_\n${item.description}\n${status}`),
+			actions(
+				button('edit').id('admin.shop_item.edit').value(item.id),
+				button(item.enabled ? 'disable' : 'enable')
+					.style(item.enabled ? 'danger' : 'primary')
+					.id('admin.shop_item.toggle')
+					.value(item.id),
+				button('delete').style('danger').id('admin.shop_item.delete').value(item.id),
+			),
+		]
+	})
+}
+
 export async function buildHomeView(userId: string) {
 	if (!isAdmin(userId)) {
 		return {
@@ -24,9 +45,10 @@ export async function buildHomeView(userId: string) {
 		}
 	}
 
-	const [stats, shopEnabled, recentLog] = await Promise.all([
+	const [stats, shopEnabled, shopItemList, recentLog] = await Promise.all([
 		getProgramStats(),
 		isFeatureEnabled(CONFIG_KEYS.shopEnabled),
+		getAllShopItems(),
 		getRecentAuditLog(10),
 	])
 
@@ -48,6 +70,14 @@ export async function buildHomeView(userId: string) {
 					.style(shopEnabled ? 'danger' : 'primary')
 					.id('admin.toggle_shop')
 					.value(shopEnabled ? 'off' : 'on'),
+			),
+			divider(),
+			header('shop items'),
+			...renderShopItems(shopItemList),
+			actions(
+				button(plain(':heavy_plus_sign: add shop item').emoji())
+					.style('primary')
+					.id('admin.shop_item.add'),
 			),
 			divider(),
 			header('recent activity'),

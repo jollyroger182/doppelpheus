@@ -15,6 +15,7 @@ import {
 	uploadModalView,
 } from './admin-upload'
 import { deleteProject } from '../../queries/project'
+import { deleteShopItem, setShopItemEnabled } from '../../queries/shop-item'
 import {
 	extractProjectFormValues,
 	extractScreenshotFile,
@@ -22,6 +23,12 @@ import {
 	projectModalView,
 	upsertProjectFromForm,
 } from './modals/project'
+import {
+	extractShopItemFormValues,
+	getShopItemForAdmin,
+	shopItemModalView,
+	upsertShopItemFromForm,
+} from './modals/shop-item'
 import { buildProjectsView } from '../user/views/projects'
 import { buildHomeView, isAdmin } from './home'
 
@@ -136,6 +143,64 @@ bot.on('action:button.admin.toggle_shop', async (event) => {
 bot.on('action:button.admin.refresh_home', async (event) => {
 	const userId = event.event.user.id
 	if (!isAdmin(userId)) return
+	await republishHome(userId)
+})
+
+bot.on('action:button.admin.shop_item.add', async (event) => {
+	const userId = event.event.user.id
+	if (!isAdmin(userId)) return
+	const modal = await event.respond.modal(shopItemModalView())
+	let submission
+	try {
+		submission = await modal.wait.submit()
+	} catch {
+		return
+	}
+	const form = extractShopItemFormValues(submission.values as any)
+	if ('error' in form) return
+	await upsertShopItemFromForm(userId, null, form)
+	await republishHome(userId)
+})
+
+bot.on('action:button.admin.shop_item.edit', async (event) => {
+	const userId = event.event.user.id
+	if (!isAdmin(userId)) return
+	const itemId = event.value
+	if (!itemId) return
+	const item = await getShopItemForAdmin(itemId)
+	if (!item) return
+	const modal = await event.respond.modal(shopItemModalView(item))
+	let submission
+	try {
+		submission = await modal.wait.submit()
+	} catch {
+		return
+	}
+	const form = extractShopItemFormValues(submission.values as any)
+	if ('error' in form) return
+	await upsertShopItemFromForm(userId, itemId, form)
+	await republishHome(userId)
+})
+
+bot.on('action:button.admin.shop_item.toggle', async (event) => {
+	const userId = event.event.user.id
+	if (!isAdmin(userId)) return
+	const itemId = event.value
+	if (!itemId) return
+	const item = await getShopItemForAdmin(itemId)
+	if (!item) return
+	await setShopItemEnabled(itemId, !item.enabled)
+	logAudit('admin.shop_item.toggled', userId, { id: itemId, enabled: !item.enabled })
+	await republishHome(userId)
+})
+
+bot.on('action:button.admin.shop_item.delete', async (event) => {
+	const userId = event.event.user.id
+	if (!isAdmin(userId)) return
+	const itemId = event.value
+	if (!itemId) return
+	await deleteShopItem(itemId)
+	logAudit('admin.shop_item.deleted', userId, { id: itemId })
 	await republishHome(userId)
 })
 
