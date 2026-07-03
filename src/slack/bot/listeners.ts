@@ -1,4 +1,4 @@
-import { blocks, context, section } from 'slack.ts'
+import { blocks, context, plain, section } from 'slack.ts'
 import { LINK_HACKATIME_MESSAGE, WELCOME_MESSAGE } from '../../consts'
 import { logAudit } from '../../queries/audit-log'
 import { CONFIG_KEYS, isFeatureEnabled, setConfig } from '../../queries/config'
@@ -31,15 +31,30 @@ import {
 } from './modals/shop-item'
 import { buildProjectsView } from '../user/views/projects'
 import { buildHomeView, isAdmin } from './home'
+import { getUploadedFileId } from '../../queries/uploaded-file'
 
 bot.on('action:button.link_hca', async (event) => {
 	logAudit('auth.hca.clicked', event.event.user.id, { state: event.value })
+
+	const welcomeImageId = await getUploadedFileId('welcome')
 	await event.respond.edit({
 		text: WELCOME_MESSAGE,
-		blocks: blocks(
-			section(WELCOME_MESSAGE),
-			context('need the button again? just send me any message!'),
-		),
+		blocks: [
+			...(welcomeImageId
+				? [
+						{
+							type: 'image' as const,
+							title: plain('welcome :3').build(),
+							slack_file: { id: welcomeImageId },
+							alt_text: 'welcome :3',
+						},
+					]
+				: []),
+			...blocks(
+				section(WELCOME_MESSAGE),
+				context('need the button again? just send me any message!'),
+			),
+		],
 	})
 })
 
@@ -65,7 +80,7 @@ bot.on('action:button.project.add', async (event) => {
 	const modal = await event.respond.modal(projectModalView())
 	let submission
 	try {
-		submission = await modal.wait.submit()
+		submission = await modal.wait.timeout(5 * 60_000).submit()
 	} catch (err) {
 		return
 	}
@@ -93,7 +108,7 @@ bot.on('action:button.project.edit', async (event) => {
 	const modal = await event.respond.modal(projectModalView(project))
 	let submission
 	try {
-		submission = await modal.wait.submit()
+		submission = await modal.wait.timeout(5 * 60_000).submit()
 	} catch (err) {
 		return
 	}
@@ -152,7 +167,7 @@ bot.on('action:button.admin.shop_item.add', async (event) => {
 	const modal = await event.respond.modal(shopItemModalView())
 	let submission
 	try {
-		submission = await modal.wait.submit()
+		submission = await modal.wait.timeout(5 * 60_000).submit()
 	} catch {
 		return
 	}
@@ -172,7 +187,7 @@ bot.on('action:button.admin.shop_item.edit', async (event) => {
 	const modal = await event.respond.modal(shopItemModalView(item))
 	let submission
 	try {
-		submission = await modal.wait.submit()
+		submission = await modal.wait.timeout(5 * 60_000).submit()
 	} catch {
 		return
 	}
@@ -211,7 +226,7 @@ bot.on('action:button.admin.upload_file', async (event) => {
 
 	let submission
 	try {
-		submission = await modal.wait.submit()
+		submission = await modal.wait.timeout(5 * 60_000).submit()
 	} catch (err) {
 		return
 	}
