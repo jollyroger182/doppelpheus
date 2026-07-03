@@ -74,7 +74,11 @@ export const keywordHandlers: KeywordHandler[] = [
 ]
 
 export const sendUnknownKeyword = (userId: string) =>
-	userBot.user(userId).send("aaa i don't know what that is :( try `help` to see what i can do!")
+	userBot
+		.user(userId)
+		.send(
+			`aaa i don't know what that is :( try \`help\` to see what i can do!\n\n(have general questions? ask the orgs in <#${MAIN_CHANNEL}>!)`,
+		)
 
 export function findKeywordHandler(text: string): KeywordHandler {
 	const lower = text.toLowerCase()
