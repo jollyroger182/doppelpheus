@@ -26,7 +26,7 @@ export const keywordHandlers: KeywordHandler[] = [
 						R.list(
 							R.section(R.text('projects').bold(), ' to see your projects'),
 							R.section(R.text('prizes').bold(), ' to browse prizes'),
-							R.section(R.text('settings').bold(), ' to change your preferences'),
+							// R.section(R.text('settings').bold(), ' to change your preferences'),
 							R.section(R.text('help').bold(), ' to view this message!'),
 						),
 					),
