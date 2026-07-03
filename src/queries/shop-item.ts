@@ -5,11 +5,14 @@ import { shopItems } from '../db/schema'
 export type ShopItem = typeof shopItems.$inferSelect
 
 export async function getEnabledShopItems() {
-	return db.query.shopItems.findMany({ where: { enabled: true } })
+	return db.query.shopItems.findMany({
+		where: { enabled: true },
+		orderBy: { priceMinutes: 'asc', name: 'asc' },
+	})
 }
 
 export async function getAllShopItems() {
-	return db.query.shopItems.findMany({ orderBy: { createdAt: 'asc' } })
+	return db.query.shopItems.findMany({ orderBy: { priceMinutes: 'asc', name: 'asc' } })
 }
 
 export async function getShopItemById(id: string) {
