@@ -31,6 +31,31 @@ The codebase uses [`slack.ts`](https://www.npmjs.com/package/slack.ts) to constr
 
 `bot.receiver.fetch(req)` is wired into `Bun.serve` at `/slack/events` in `index.ts`. Listeners in `src/slack/bot/listeners.ts` (admin/bot events + button-action handlers) and `src/slack/user/listeners.ts` (participant DM handling on the selfbot) are registered at import time via side-effect imports in `index.ts`.
 
+### Participant (selfbot) side — `src/slack/user/`
+
+- `listeners.ts` registers RTM handlers on `app` for DMs to the Doppel mascot.
+- `keywords.ts` holds keyword/intent matching for participant messages — the entry point for adding new triggers in the participant conversation.
+- `operations.ts` centralizes side-effectful actions the selfbot performs on behalf of the participant flow (progress updates, submissions, etc.).
+- `views/` contains Slack Block Kit view builders rendered back to the participant (e.g. `projects.ts`).
+
+### Admin (real bot) side — `src/slack/bot/`
+
+- `listeners.ts` registers `bot` handlers for events, interactivity, and button actions coming through the `/slack/events` webhook.
+- `home.ts` renders the App Home surface for admins (stats, review queues, etc.).
+- `modals/` holds Slack modal view builders + submission handlers (`project.ts`, `shop-item.ts`) used for admin review/editing flows.
+- `admin-upload.ts` handles files uploaded through the admin bot; uploads are persisted via `src/queries/uploaded-file.ts`.
+
+### Domain queries (`src/queries/`)
+
+Beyond the auth flow, the DB models the whole program:
+
+- `user.ts`, `project.ts` — participants and their submissions.
+- `shop-item.ts` — the tiered prizes mentioned in Purpose are modeled as `shop_items`, editable via the admin shop-item modal.
+- `uploaded-file.ts` — files uploaded through the admin bot.
+- `audit-log.ts` — admin mutations write audit entries; new admin actions that change state should record one too.
+- `stats.ts` — aggregate queries surfaced on the admin home tab.
+- `config.ts` — dynamic runtime config (feature flags / tunables) stored in the DB rather than env vars.
+
 ### OAuth flow
 
 State passed through OAuth is a UUID row in the `auth_attempts` table (`src/queries/auth-attempt.ts`), tied to a Slack user id. On callback:
@@ -50,11 +75,19 @@ Migrations live in `./drizzle` and are the source of truth — prefer `db:genera
 
 ### Env vars (see `.env.example`)
 
-Required for boot: `DATABASE_URL`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_XOXC_TOKEN`, `SLACK_XOXD_TOKEN`, `SLACK_XOXP_TOKEN`. `src/slack/client.ts` throws if any are missing. Note: `SLACK_XOXD_TOKEN` must be copied from the cookie header **without URL-decoding**. OAuth flows additionally need `HCA_CLIENT_ID/SECRET`, `HACKATIME_CLIENT_ID/SECRET`, and `EXTERNAL_URL` (the publicly reachable base for callbacks). `ADMIN_API_KEY` gates the `POST /api/welcome` admin endpoint via the `x-api-key` header.
+Required for boot: `DATABASE_URL`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_XOXC_TOKEN`, `SLACK_XOXD_TOKEN`, `SLACK_XOXP_TOKEN`. `src/slack/client.ts` throws if any are missing. Note: `SLACK_XOXD_TOKEN` must be copied from the cookie header **without URL-decoding**. OAuth flows additionally need `HCA_CLIENT_ID/SECRET`, `HACKATIME_CLIENT_ID/SECRET`, and `EXTERNAL_URL` (the publicly reachable base for callbacks). `ADMIN_API_KEY` gates the `POST /api/welcome` admin endpoint via the `x-api-key` header — that endpoint DMs a given user id from the selfbot to kick off / test the participant conversation.
 
 ### Slack app manifest
 
 `manifest.json` is the source of truth for scopes and event subscriptions. When adding a listener that needs a new scope or event, update it there and reinstall the app.
+
+### Where to hook new behavior
+
+- **New participant DM behavior** → add a matcher in `src/slack/user/keywords.ts` and wire it in `src/slack/user/listeners.ts`; put side effects in `operations.ts` and any rendered blocks in `views/`.
+- **New admin button / modal** → register the action in `src/slack/bot/listeners.ts` and add the view under `src/slack/bot/modals/`. State-changing actions should write to `audit-log`.
+- **New DB table** → update both `src/db/schema.ts` and `src/db/relations.ts`, add a query module under `src/queries/`, then `bun run db:generate` + `bun run db:migrate`.
+- **New OAuth-style flow** → mirror `src/api/auth/hackclub.ts` (create `auth_attempts` row → callback exchanges code → mark used → upsert token → `redirectToDM`). Add the route in `index.ts`.
+- **New Slack scope or event subscription** → update `manifest.json` and reinstall the app.
 
 ---
 
