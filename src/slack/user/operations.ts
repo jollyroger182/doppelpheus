@@ -1,5 +1,10 @@
 import { actions, blocks, button, plain, section } from 'slack.ts'
-import { ALL_SET_MESSAGE, LINK_HACKATIME_MESSAGE, WELCOME_MESSAGE } from '../../consts'
+import {
+	ALL_SET_MESSAGE,
+	LINK_HACKATIME_MESSAGE,
+	WELCOME_BACK_MESSAGE,
+	WELCOME_MESSAGE,
+} from '../../consts'
 import { logAudit } from '../../queries/audit-log'
 import { createAuthAttempt } from '../../queries/auth-attempt'
 import { getUploadedFileId } from '../../queries/uploaded-file'
@@ -81,4 +86,8 @@ export async function sendIneligibleMessage(user: string) {
 
 export async function sendAllSetMessage(user: string) {
 	await userBot.user(user).send(ALL_SET_MESSAGE)
+}
+
+export async function sendWelcomeBackMessage(user: string) {
+	await userBot.user(user).send(WELCOME_BACK_MESSAGE)
 }

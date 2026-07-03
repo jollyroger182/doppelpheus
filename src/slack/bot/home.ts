@@ -1,4 +1,3 @@
-import type { AnyBlock } from '@slack/types'
 import { actions, blocks, button, divider, header, plain, R, richText, section } from 'slack.ts'
 import { getRecentAuditLog } from '../../queries/audit-log'
 import { CONFIG_KEYS, isFeatureEnabled } from '../../queries/config'
