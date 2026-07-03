@@ -19,5 +19,13 @@ export const relations = defineRelations(schema, (r) => ({
 			to: r.users.id,
 			optional: false,
 		}),
+		reviews: r.many.projectReviews(),
+	},
+	projectReviews: {
+		project: r.one.projects({
+			from: r.projectReviews.projectId,
+			to: r.projects.id,
+			optional: false,
+		}),
 	},
 }))

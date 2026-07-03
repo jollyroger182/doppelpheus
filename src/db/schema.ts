@@ -1,4 +1,16 @@
-import { boolean, index, integer, pgTable, real, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import {
+	boolean,
+	index,
+	integer,
+	jsonb,
+	pgEnum,
+	pgTable,
+	real,
+	text,
+	timestamp,
+	uuid,
+} from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
 	id: text().primaryKey(),
@@ -27,8 +39,33 @@ export const projects = pgTable(
 		screenshotFileId: text(),
 		playableUrl: text(),
 		codeUrl: text(),
+		hackatimeProjects: text()
+			.array()
+			.notNull()
+			.default(sql`ARRAY[]::text[]`),
 	},
 	(table) => [index().on(table.userId)],
+)
+
+export const reviewStatus = pgEnum('review_status', ['pending', 'approved', 'rejected'])
+
+export const projectReviews = pgTable(
+	'project_reviews',
+	{
+		id: uuid().primaryKey().defaultRandom(),
+		projectId: integer()
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		status: reviewStatus().notNull(),
+		reviewerId: text(),
+		comment: text(),
+		channelId: text(),
+		messageTs: text(),
+		hackatimeSeconds: jsonb().$type<Record<string, number>>(),
+		createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+		decidedAt: timestamp({ withTimezone: true }),
+	},
+	(table) => [index().on(table.projectId), index().on(table.status)],
 )
 
 export const config = pgTable('config', {

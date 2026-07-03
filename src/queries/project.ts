@@ -26,3 +26,23 @@ export async function deleteProject(id: number) {
 	const [row] = await db.delete(projects).where(eq(projects.id, id)).returning()
 	return row
 }
+
+export function isProjectShippable(project: Project): boolean {
+	return !!(
+		project.name &&
+		project.description &&
+		project.playableUrl &&
+		project.codeUrl &&
+		project.screenshotFileId &&
+		project.hackatimeProjects.length > 0
+	)
+}
+
+export function missingShippableFields(project: Project): string[] {
+	const missing: string[] = []
+	if (!project.playableUrl) missing.push('demo url')
+	if (!project.codeUrl) missing.push('code url')
+	if (!project.screenshotFileId) missing.push('screenshot')
+	if (project.hackatimeProjects.length === 0) missing.push('hackatime projects')
+	return missing
+}

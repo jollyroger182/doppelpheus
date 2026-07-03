@@ -1,6 +1,6 @@
 import { actions, blocks, button, divider, header, plain, R, richText, section } from 'slack.ts'
 import { getRecentAuditLog } from '../../queries/audit-log'
-import { CONFIG_KEYS, isFeatureEnabled } from '../../queries/config'
+import { CONFIG_KEYS, getEventStartDate, isFeatureEnabled } from '../../queries/config'
 import { getAllShopItems, type ShopItem } from '../../queries/shop-item'
 import { getProgramStats } from '../../queries/stats'
 
@@ -44,12 +44,17 @@ export async function buildHomeView(userId: string) {
 		}
 	}
 
-	const [stats, shopEnabled, shopItemList, recentLog] = await Promise.all([
+	const [stats, shopEnabled, shopItemList, recentLog, eventStart] = await Promise.all([
 		getProgramStats(),
 		isFeatureEnabled(CONFIG_KEYS.shopEnabled),
 		getAllShopItems(),
 		getRecentAuditLog(10),
+		getEventStartDate(),
 	])
+
+	const eventStartLabel = eventStart
+		? eventStart.toISOString().slice(0, 10)
+		: ':warning: not set'
 
 	return {
 		type: 'home' as const,
@@ -61,6 +66,11 @@ export async function buildHomeView(userId: string) {
 				`*${stats.hackatimeLinked}*\nhackatime linked`,
 				`*${stats.projectCount}*\nprojects`,
 				`*${stats.enabledShopItems}*\nenabled shop items`,
+			),
+			divider(),
+			header('event settings'),
+			section(`event start: *${eventStartLabel}*`).accessory(
+				button('edit').id('admin.event_start.edit'),
 			),
 			divider(),
 			header('feature toggles'),

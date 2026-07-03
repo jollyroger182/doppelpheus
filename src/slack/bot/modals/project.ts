@@ -1,4 +1,4 @@
-import { blocks, fileInput, input, plain, plainTextInput, section } from 'slack.ts'
+import { blocks, fileInput, input, option, plain, plainTextInput, section, select } from 'slack.ts'
 import { logAudit } from '../../../queries/audit-log'
 import {
 	createProject,
@@ -20,6 +20,17 @@ export const CODE_BLOCK = 'project.code_url'
 export const CODE_ACTION = 'code_url'
 export const SCREENSHOT_BLOCK = 'project.screenshot'
 export const SCREENSHOT_ACTION = 'screenshot'
+export const HACKATIME_BLOCK = 'project.hackatime'
+export const HACKATIME_ACTION = 'hackatime'
+
+// TODO: replace with a real fetch from the user's hackatime token
+export const HACKATIME_SAMPLE_PROJECTS = [
+	'doppel',
+	'ysws-bot',
+	'hackatime',
+	'raycast-extension',
+	'other',
+]
 
 export function projectModalView(project?: Project) {
 	const isEdit = !!project
@@ -81,6 +92,19 @@ export function projectModalView(project?: Project) {
 						: 'screenshot of your project working',
 				)
 				.id(SCREENSHOT_BLOCK),
+			input(
+				select()
+					.multiple()
+					.dynamic()
+					.id(HACKATIME_ACTION)
+					.minQueryLength(0)
+					.placeholder('pick your hackatime projects')
+					.default(...(project?.hackatimeProjects ?? []).map((v) => option(v, v))),
+			)
+				.label('hackatime projects')
+				.optional()
+				.hint('which hackatime projects count toward this — required to ship')
+				.id(HACKATIME_BLOCK),
 		),
 	}
 }
@@ -90,6 +114,7 @@ export interface ProjectFormValues {
 	description: string
 	playableUrl: string | null
 	codeUrl: string | null
+	hackatimeProjects: string[]
 }
 
 interface SubmittedFile {
@@ -106,12 +131,15 @@ export function extractProjectFormValues(
 	const description: string = values[DESC_BLOCK]?.[DESC_ACTION]?.value ?? ''
 	const playableUrl: string = values[DEMO_BLOCK]?.[DEMO_ACTION]?.value ?? ''
 	const codeUrl: string = values[CODE_BLOCK]?.[CODE_ACTION]?.value ?? ''
+	const hackatimeSelections: { value: string }[] =
+		values[HACKATIME_BLOCK]?.[HACKATIME_ACTION]?.selected_options ?? []
 
 	return {
 		name: name.trim(),
 		description: description.trim(),
 		playableUrl: playableUrl.trim() || null,
 		codeUrl: codeUrl.trim() || null,
+		hackatimeProjects: hackatimeSelections.map((o) => o.value),
 	}
 }
 
@@ -142,6 +170,7 @@ export async function upsertProjectFromForm(
 			playableUrl: form.playableUrl,
 			codeUrl: form.codeUrl,
 			screenshotFileId: screenshotFileId ?? null,
+			hackatimeProjects: form.hackatimeProjects,
 		}
 		const created = await createProject(data)
 		logAudit('project.created', userId, { id: created.id, ...data })
@@ -153,6 +182,7 @@ export async function upsertProjectFromForm(
 		description: form.description,
 		playableUrl: form.playableUrl,
 		codeUrl: form.codeUrl,
+		hackatimeProjects: form.hackatimeProjects,
 	}
 	if (screenshotFileId !== undefined) patch.screenshotFileId = screenshotFileId
 	const updated = await updateProject(projectId, patch)
