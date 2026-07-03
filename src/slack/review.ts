@@ -4,11 +4,7 @@ import { syncApprovedProjectToAirtable } from '../airtable'
 import { formatSeconds, getHackatimeProjectStats } from '../hackatime'
 import { logAudit } from '../queries/audit-log'
 import { getEventStartDate } from '../queries/config'
-import {
-	getProjectById,
-	isProjectShippable,
-	type Project,
-} from '../queries/project'
+import { getProjectWithUserById, isProjectShippable, type Project } from '../queries/project'
 import {
 	attachReviewMessage,
 	createReview,
@@ -23,10 +19,7 @@ function projectFieldBlocks(
 	project: Project,
 	hackatimeSeconds: Record<string, number> | null,
 ): AnyBlock[] {
-	const lines: string[] = [
-		`*${project.name}*`,
-		project.description,
-	]
+	const lines: string[] = [`*${project.name}*`, project.description]
 	if (project.playableUrl) lines.push(`_demo:_ ${project.playableUrl}`)
 	if (project.codeUrl) lines.push(`_code:_ ${project.codeUrl}`)
 	if (project.hackatimeProjects.length) {
@@ -46,10 +39,7 @@ function projectFieldBlocks(
 	]
 }
 
-function buildReviewMessage(
-	project: Project,
-	review: ProjectReview,
-) {
+function buildReviewMessage(project: Project, review: ProjectReview) {
 	return {
 		text: `new project submitted by <@${project.userId}>: ${project.name}`,
 		blocks: [
@@ -81,9 +71,7 @@ function buildDecidedReviewMessage(
 		text: `project ${review.status}: ${project.name}`,
 		blocks: [
 			...blocks(
-				header(
-					review.status === 'approved' ? 'project approved' : 'project rejected',
-				),
+				header(review.status === 'approved' ? 'project approved' : 'project rejected'),
 				section(`<@${project.userId}> — ${project.name}`),
 			),
 			...projectFieldBlocks(project, review.hackatimeSeconds),
@@ -112,7 +100,7 @@ export async function submitProjectForReview(
 	userId: string,
 	projectId: number,
 ): Promise<SubmitResult> {
-	const project = await getProjectById(projectId)
+	const project = await getProjectWithUserById(projectId)
 	if (!project || project.userId !== userId) return { ok: false, reason: 'not_found' }
 	if (!isProjectShippable(project)) return { ok: false, reason: 'not_shippable' }
 
@@ -155,7 +143,7 @@ async function decideAndNotify(
 	const decided = await decideReview(reviewId, { status, reviewerId, comment })
 	if (!decided) return null
 
-	const project = await getProjectById(decided.projectId)
+	const project = await getProjectWithUserById(decided.projectId)
 	if (!project) return decided
 
 	await editReviewMessage(decided, project)

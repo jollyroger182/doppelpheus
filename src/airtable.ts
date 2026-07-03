@@ -1,21 +1,24 @@
-import { logAudit } from './queries/audit-log'
 import type { Project } from './queries/project'
 import type { ProjectReview } from './queries/project-review'
+import type { User } from './queries/user'
+import { getHCAProfile } from './utils'
 
-// TODO: replace with the real Doppel YSWS table name
-const AIRTABLE_TABLE_NAME = 'TODO_TABLE_NAME'
+const AIRTABLE_TABLE_NAME = 'YSWS Project Submission'
 
 export async function syncApprovedProjectToAirtable(
-	project: Project,
+	project: Project & { user: User },
 	review: ProjectReview,
 ): Promise<void> {
 	const { AIRTABLE_API_KEY, AIRTABLE_BASE_ID } = process.env
 	if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID) {
-		logAudit('airtable.sync.skipped', null, {
-			reason: 'env not configured',
-			projectId: project.id,
-		})
+		console.error('airtable sync skipped because env is not configured')
 		return
+	}
+
+	const profile = await getHCAProfile(project.user.hcaToken!)
+	const address = profile.identity.addresses.find((a) => a.primary) || profile.identity.addresses[0]
+	if (!address) {
+		throw new Error('no address found for user')
 	}
 
 	const res = await fetch(
@@ -28,16 +31,23 @@ export async function syncApprovedProjectToAirtable(
 			},
 			body: JSON.stringify({
 				fields: {
-					// TODO: map these to real Airtable field names
-					TODO_slack_user_id: project.userId,
-					TODO_project_name: project.name,
-					TODO_description: project.description,
-					TODO_demo_url: project.playableUrl,
-					TODO_code_url: project.codeUrl,
-					TODO_screenshot_file_id: project.screenshotFileId,
-					TODO_hackatime_projects: project.hackatimeProjects.join(', '),
-					TODO_approved_at: review.decidedAt?.toISOString(),
-					TODO_reviewer: review.reviewerId,
+					'Code URL': project.codeUrl,
+					'Playable URL': project.playableUrl,
+					'First Name': address.first_name,
+					'Last Name': address.last_name,
+					Email: profile.identity.primary_email,
+					// TODO Screenshot
+					Description: project.description,
+					'Address (Line 1)': address.line_1,
+					'Address (Line 2)': address.line_2,
+					City: address.city,
+					'State / Province': address.state,
+					Country: address.country,
+					'ZIP / Postal Code': address.postal_code,
+					Birthday: profile.identity.birthday,
+					'Optional - Override Hours Spent':
+						Object.values(review.hackatimeSeconds || {}).reduce((a, b) => a + b, 0) / 3600,
+					'Optional - Override Hours Spent Justification': 'TODO',
 				},
 			}),
 		},

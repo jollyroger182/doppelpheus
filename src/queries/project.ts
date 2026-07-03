@@ -8,8 +8,8 @@ export async function getProjectsByUserId(userId: string) {
 	return db.query.projects.findMany({ where: { userId } })
 }
 
-export async function getProjectById(id: number) {
-	return db.query.projects.findFirst({ where: { id } })
+export async function getProjectWithUserById(id: number) {
+	return db.query.projects.findFirst({ where: { id }, with: { user: true } })
 }
 
 export async function createProject(data: typeof projects.$inferInsert) {

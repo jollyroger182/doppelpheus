@@ -2,7 +2,7 @@ import { blocks, fileInput, input, option, plain, plainTextInput, section, selec
 import { logAudit } from '../../../queries/audit-log'
 import {
 	createProject,
-	getProjectById,
+	getProjectWithUserById,
 	updateProject,
 	type Project,
 } from '../../../queries/project'
@@ -191,7 +191,7 @@ export async function upsertProjectFromForm(
 }
 
 export async function getProjectForEdit(userId: string, projectId: number) {
-	const project = await getProjectById(projectId)
+	const project = await getProjectWithUserById(projectId)
 	if (!project || project.userId !== userId) return undefined
 	return project
 }
