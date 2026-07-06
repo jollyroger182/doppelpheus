@@ -52,6 +52,8 @@ function renderProject(
 	}
 
 	const shippable = isProjectShippable(project)
+	const hasUnshippedTime = totalSeconds > shippedTotalSeconds
+	const canShip = shippable && (!state.shipped || hasUnshippedTime)
 	const buttons = [
 		button('edit').id('project.edit').value(value),
 		...(state.shipped
@@ -68,7 +70,7 @@ function renderProject(
 						style: 'danger',
 					}),
 				]),
-		...(shippable
+		...(canShip
 			? [
 					withConfirm(
 						button(state.shipped ? 're-ship' : 'ship it!')
@@ -103,6 +105,8 @@ function renderProject(
 	} else if (!shippable) {
 		const missing = missingShippableFields(project)
 		result.push(context(`fill in ${missing.join(', ')} to ship this`).build())
+	} else if (state.shipped && !hasUnshippedTime) {
+		result.push(context('log more hackatime hours before you can re-ship').build())
 	}
 
 	return result

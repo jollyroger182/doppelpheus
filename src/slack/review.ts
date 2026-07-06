@@ -10,6 +10,7 @@ import {
 	createReview,
 	decideReview,
 	getApprovedHackatimeSecondsForProject,
+	getLatestApprovedReviewForProject,
 	getLatestReviewForProject,
 	getReviewById,
 	type ProjectReview,
@@ -108,7 +109,10 @@ async function computeUncountedHackatimeSeconds(project: Project, until: Date): 
 
 export type SubmitResult =
 	| { ok: true; reviewId: string }
-	| { ok: false; reason: 'not_found' | 'not_shippable' | 'already_pending' | 'no_channel' }
+	| {
+			ok: false
+			reason: 'not_found' | 'not_shippable' | 'already_pending' | 'no_new_hours' | 'no_channel'
+	  }
 
 export async function submitProjectForReview(
 	userId: string,
@@ -128,6 +132,10 @@ export async function submitProjectForReview(
 	}
 
 	const hackatimeSeconds = await computeUncountedHackatimeSeconds(project, new Date())
+	if (hackatimeSeconds === 0) {
+		const alreadyApproved = await getLatestApprovedReviewForProject(projectId)
+		if (alreadyApproved) return { ok: false, reason: 'no_new_hours' }
+	}
 
 	const review = await createReview(projectId, hackatimeSeconds)
 	const posted = await bot.channel(REVIEWS_CHANNEL).send(buildReviewMessage(project, review))
