@@ -1,25 +1,35 @@
-import { HACKATIME_SAMPLE_PROJECTS } from './slack/bot/modals/project'
+import { getUserWithProjectsById } from './queries/user'
 
 export interface HackatimeProjectStats {
 	project: string
 	seconds: number
 }
 
-// TODO: replace with a real hackatime API call using the user's hackatimeToken.
-// Docs: https://waka.hackclub.com — endpoints like /api/v1/users/current/stats/<range>
-// or /api/v1/users/current/heartbeats over the window.
 export async function getHackatimeProjectStats(
-	_userId: string,
+	userId: string,
 	start: Date,
 	end: Date,
 ): Promise<HackatimeProjectStats[]> {
-	const windowSeconds = Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000))
-	// Sample distribution: give each sample project a deterministic slice of the window.
-	// Real implementation will hit hackatime and honor start/end for the query range.
-	return HACKATIME_SAMPLE_PROJECTS.map((project, i) => ({
-		project,
-		seconds: Math.min(windowSeconds, (i + 1) * 60 * 60 * 3),
-	}))
+	const user = await getUserWithProjectsById(userId)
+	const hackatimeToken = user?.hackatimeToken
+	if (!hackatimeToken) return []
+
+	const url = new URL('https://hackatime.hackclub.com/api/v1/authenticated/projects')
+	url.searchParams.set('start', start.toISOString())
+	url.searchParams.set('end', end.toISOString())
+	const resp = await fetch(url, {
+		headers: {
+			Authorization: `Bearer ${hackatimeToken}`,
+		},
+	})
+	if (!resp.ok) {
+		console.error('failed to pull data from hackatime', await resp.text())
+		return []
+	}
+	const data = (await resp.json()) as { projects: { name: string; total_seconds: number }[] }
+	console.log(data)
+
+	return data.projects.map((p) => ({ project: p.name, seconds: p.total_seconds }))
 }
 
 export function formatSeconds(seconds: number): string {

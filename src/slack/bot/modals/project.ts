@@ -24,15 +24,6 @@ export const SCREENSHOT_ACTION = 'screenshot'
 export const HACKATIME_BLOCK = 'project.hackatime'
 export const HACKATIME_ACTION = 'hackatime'
 
-// TODO: replace with a real fetch from the user's hackatime token
-export const HACKATIME_SAMPLE_PROJECTS = [
-	'doppel',
-	'ysws-bot',
-	'hackatime',
-	'raycast-extension',
-	'other',
-]
-
 export function projectModalView(project?: Project) {
 	const isEdit = !!project
 	return {
