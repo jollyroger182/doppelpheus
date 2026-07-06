@@ -19,10 +19,10 @@ export const keywordHandlers: KeywordHandler[] = [
 		keywords: ['help'],
 		send: async (userId) => {
 			return userBot.user(userId).send({
-				text: `hii, i'm doppel from <#${MAIN_CHANNEL}>! here's what i can do:`,
+				text: `hello there human i hear you are in need of help? i'm doppel from <#${MAIN_CHANNEL}> and here's what i can do:`,
 				blocks: blocks(
 					richText(
-						R.section("hii, i'm doppel from ", R.channel(MAIN_CHANNEL!), "! here's what i can do:"),
+						R.section("hello there human i hear you are in need of help? i'm doppel from ", R.channel(MAIN_CHANNEL!), " and here's what i can do:"),
 						R.list(
 							R.section(R.text('projects').bold(), ' to see your projects'),
 							R.section(R.text('prizes').bold(), ' to browse prizes'),
@@ -68,6 +68,14 @@ export const keywordHandlers: KeywordHandler[] = [
 						),
 					),
 				),
+			})
+		},
+	},
+	{
+		keywords: ['blahaj'],
+		send: async (userId) => {
+			return userBot.user(userId).send({
+				text: `<3`,
 			})
 		},
 	},
