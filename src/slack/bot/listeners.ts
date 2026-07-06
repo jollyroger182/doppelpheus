@@ -226,6 +226,8 @@ bot.on(`autocomplete.${HACKATIME_ACTION}`, async (event) => {
 	const stats = await getHackatimeProjectStats(userId, start, new Date())
 	const matches = stats
 		.filter((s) => s.project.toLowerCase().includes(query))
+		.sort((a, b) => b.seconds - a.seconds)
+		.slice(0, 100)
 		.map((s) => option(`${s.project} (${formatSeconds(s.seconds)})`, s.project))
 	await event.respond(...matches)
 })

@@ -36,8 +36,8 @@ export function projectModalView(project?: Project) {
 			...blocks(
 				section(
 					isEdit
-						? 'update your project details below.'
-						: "let's set up a new project! name and description are required.",
+						? 'update your project details below'
+						: 'name and description are required for new projects, but all fields are required to ship :3',
 				),
 				input(
 					plainTextInput()
@@ -62,7 +62,7 @@ export function projectModalView(project?: Project) {
 				actionId: DEMO_ACTION,
 				label: 'demo url',
 				placeholder: 'https://…',
-				hint: 'a link where anyone can try out your project',
+				hint: 'a link to a public channel on slack where you introduce and demo your bot, or some other link where anyone can try out your bot',
 				initial: project?.playableUrl,
 				optional: true,
 			}).build(),
@@ -71,7 +71,7 @@ export function projectModalView(project?: Project) {
 				actionId: CODE_ACTION,
 				label: 'code url',
 				placeholder: 'https://github.com/…',
-				hint: "a link to your project's GitHub, Gitlab, etc.",
+				hint: "a link to your project's github, gitlab, etc",
 				initial: project?.codeUrl,
 				optional: true,
 			}).build(),
@@ -96,7 +96,6 @@ export function projectModalView(project?: Project) {
 				)
 					.label('hackatime projects')
 					.optional()
-					.hint('which hackatime projects count toward this — required to ship')
 					.id(HACKATIME_BLOCK),
 			),
 		],
