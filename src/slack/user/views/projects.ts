@@ -1,5 +1,6 @@
 import type { AnyBlock } from '@slack/types'
 import { actions, blocks, button, context, divider, header, image, section } from 'slack.ts'
+import { withConfirm } from '../../blocks/button-confirm'
 import { formatSeconds, getHackatimeProjectStats } from '../../../hackatime'
 import { getEventStartDate } from '../../../queries/config'
 import {
@@ -53,13 +54,45 @@ function renderProject(
 	const shippable = isProjectShippable(project)
 	const buttons = [
 		button('edit').id('project.edit').value(value),
-		...(state.shipped ? [] : [button('delete').style('danger').id('project.delete').value(value)]),
+		...(state.shipped
+			? []
+			: [
+					withConfirm(button('delete').style('danger').id('project.delete').value(value), {
+						title: { type: 'plain_text', text: 'delete project?' },
+						text: {
+							type: 'plain_text',
+							text: `are you sure you want to delete ${project.name}? this can't be undone!`,
+						},
+						confirm: { type: 'plain_text', text: 'delete' },
+						deny: { type: 'plain_text', text: 'cancel' },
+						style: 'danger',
+					}),
+				]),
 		...(shippable
 			? [
-					button(state.shipped ? 're-ship' : 'ship it!')
-						.style('primary')
-						.id('project.ship')
-						.value(value),
+					withConfirm(
+						button(state.shipped ? 're-ship' : 'ship it!')
+							.style('primary')
+							.id('project.ship')
+							.value(value),
+						{
+							title: {
+								type: 'plain_text',
+								text: state.shipped ? 're-ship project?' : 'ship project?',
+							},
+							text: {
+								type: 'plain_text',
+								text: state.shipped
+									? `re-ship ${project.name}? make sure you fixed the issues that your reviewer mentioned!`
+									: `ship ${project.name}? make sure you filled out your project details correctly!`,
+							},
+							confirm: {
+								type: 'plain_text',
+								text: state.shipped ? 're-ship' : 'ship it',
+							},
+							deny: { type: 'plain_text', text: 'not yet' },
+						},
+					),
 				]
 			: []),
 	]
