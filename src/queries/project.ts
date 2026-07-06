@@ -12,6 +12,10 @@ export async function getProjectWithUserById(id: number) {
 	return db.query.projects.findFirst({ where: { id }, with: { user: true } })
 }
 
+export async function getProjectByScreenshotToken(token: string) {
+	return db.query.projects.findFirst({ where: { screenshotToken: token } })
+}
+
 export async function createProject(data: typeof projects.$inferInsert) {
 	const [row] = await db.insert(projects).values(data).returning()
 	return row!

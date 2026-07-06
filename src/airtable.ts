@@ -9,7 +9,7 @@ export async function syncApprovedProjectToAirtable(
 	project: Project & { user: User },
 	review: ProjectReview,
 ): Promise<void> {
-	const { AIRTABLE_API_KEY, AIRTABLE_BASE_ID } = process.env
+	const { AIRTABLE_API_KEY, AIRTABLE_BASE_ID, EXTERNAL_URL } = process.env
 	if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID) {
 		console.error('airtable sync skipped because env is not configured')
 		return
@@ -36,7 +36,10 @@ export async function syncApprovedProjectToAirtable(
 					'First Name': address.first_name,
 					'Last Name': address.last_name,
 					Email: profile.identity.primary_email,
-					// TODO Screenshot
+					Screenshot:
+						project.screenshotFileId && EXTERNAL_URL
+							? [{ url: `${EXTERNAL_URL}/api/screenshot/${project.screenshotToken}` }]
+							: undefined,
 					Description: project.description,
 					'Address (Line 1)': address.line_1,
 					'Address (Line 2)': address.line_2,

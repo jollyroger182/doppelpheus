@@ -36,6 +36,7 @@ export const projects = pgTable(
 		name: text().notNull(),
 		description: text().notNull(),
 		screenshotFileId: text(),
+		screenshotToken: uuid().notNull().defaultRandom().unique(),
 		playableUrl: text(),
 		codeUrl: text(),
 		hackatimeProjects: text()
