@@ -9,7 +9,7 @@ import {
 	attachReviewMessage,
 	createReview,
 	decideReview,
-	getLatestApprovedReviewForProject,
+	getApprovedHackatimeSecondsForProject,
 	getLatestReviewForProject,
 	getReviewById,
 	type ProjectReview,
@@ -94,6 +94,18 @@ async function editReviewMessage(review: ProjectReview, project: Project) {
 	}
 }
 
+// Always counts from event start up to `until`, minus the hours already
+// captured in previously-approved reviews for this project. Rejected windows
+// continue to count since only approvals reduce the outstanding total.
+async function computeUncountedHackatimeSeconds(project: Project, until: Date): Promise<number> {
+	const eventStart = (await getEventStartDate()) ?? new Date(0)
+	const stats = await getHackatimeProjectStats(project.userId, eventStart, until)
+	const selected = new Set(project.hackatimeProjects)
+	const total = stats.filter((s) => selected.has(s.project)).reduce((acc, s) => acc + s.seconds, 0)
+	const alreadyApproved = await getApprovedHackatimeSecondsForProject(project.id)
+	return Math.max(0, total - alreadyApproved)
+}
+
 export type SubmitResult =
 	| { ok: true; reviewId: string }
 	| { ok: false; reason: 'not_found' | 'not_shippable' | 'already_pending' | 'no_channel' }
@@ -115,17 +127,7 @@ export async function submitProjectForReview(
 		return { ok: false, reason: 'no_channel' }
 	}
 
-	// Only APPROVED reviews reset the counting window — a rejected review still
-	// counts its hours toward the next attempt, since the participant had to keep
-	// iterating on the same work.
-	const windowEnd = new Date()
-	const lastApproved = await getLatestApprovedReviewForProject(projectId)
-	const windowStart = lastApproved?.createdAt ?? (await getEventStartDate()) ?? new Date(0)
-	const stats = await getHackatimeProjectStats(userId, windowStart, windowEnd)
-	const selected = new Set(project.hackatimeProjects)
-	const hackatimeSeconds = stats
-		.filter((s) => selected.has(s.project))
-		.reduce((acc, s) => acc + s.seconds, 0)
+	const hackatimeSeconds = await computeUncountedHackatimeSeconds(project, new Date())
 
 	const review = await createReview(projectId, hackatimeSeconds)
 	const posted = await bot.channel(REVIEWS_CHANNEL).send(buildReviewMessage(project, review))
@@ -147,16 +149,23 @@ async function decideAndNotify(
 	const existing = await getReviewById(reviewId)
 	if (!existing || existing.status !== 'pending') return null
 
+	const project = await getProjectWithUserById(existing.projectId)
+
+	const hackatimeSeconds =
+		status === 'approved' && project
+			? await computeUncountedHackatimeSeconds(project, existing.createdAt)
+			: undefined
+
 	const decided = await decideReview(reviewId, {
 		status,
 		reviewerId,
 		comment,
 		justification,
 		hoursAdjustment,
+		hackatimeSeconds,
 	})
 	if (!decided) return null
 
-	const project = await getProjectWithUserById(decided.projectId)
 	if (!project) return decided
 
 	await editReviewMessage(decided, project)
@@ -176,7 +185,7 @@ async function decideAndNotify(
 						section(
 							`your project *${project.name}* was rejected :(\n\n>${(comment ?? '').replace(/\n/g, '\n>')}`,
 						),
-						context('fix the issues above, and resubmit your project!'),
+						context('fix & resubmit your project!'),
 					),
 				}
 

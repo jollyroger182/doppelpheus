@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { projectReviews, reviewStatus } from '../db/schema'
 
@@ -37,6 +37,16 @@ export async function getLatestApprovedReviewForProject(projectId: number) {
 	return rows[0]
 }
 
+export async function getApprovedHackatimeSecondsForProject(projectId: number): Promise<number> {
+	const rows = await db
+		.select({
+			total: sql<number>`coalesce(sum(${projectReviews.hackatimeSeconds}), 0)`,
+		})
+		.from(projectReviews)
+		.where(and(eq(projectReviews.projectId, projectId), eq(projectReviews.status, 'approved')))
+	return Number(rows[0]?.total ?? 0)
+}
+
 export async function getReviewsForProjects(projectIds: number[]) {
 	const map = new Map<number, ProjectReview[]>()
 	if (!projectIds.length) return map
@@ -68,6 +78,7 @@ export async function decideReview(
 		comment: string | null
 		justification: string | null
 		hoursAdjustment: number | null
+		hackatimeSeconds?: number
 	},
 ) {
 	const [row] = await db
@@ -79,6 +90,9 @@ export async function decideReview(
 			justification: decision.justification,
 			hoursAdjustment: decision.hoursAdjustment,
 			decidedAt: new Date(),
+			...(decision.hackatimeSeconds !== undefined
+				? { hackatimeSeconds: decision.hackatimeSeconds }
+				: {}),
 		})
 		.where(and(eq(projectReviews.id, id), eq(projectReviews.status, 'pending')))
 		.returning()
