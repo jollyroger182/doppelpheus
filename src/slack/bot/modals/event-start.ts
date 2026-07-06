@@ -1,4 +1,4 @@
-import { blocks, datePicker, input, plain, section } from 'slack.ts'
+import { blocks, datetimePicker, input, plain, section } from 'slack.ts'
 
 export const EVENT_START_BLOCK = 'admin.event_start.date'
 export const EVENT_START_ACTION = 'date'
@@ -15,10 +15,10 @@ export function eventStartModalView(current: Date | null) {
 			),
 			input(
 				current
-					? datePicker().id(EVENT_START_ACTION).default(current)
-					: datePicker().id(EVENT_START_ACTION),
+					? datetimePicker().id(EVENT_START_ACTION).default(current)
+					: datetimePicker().id(EVENT_START_ACTION),
 			)
-				.label('start date')
+				.label('start date & time')
 				.id(EVENT_START_BLOCK),
 		),
 	}
@@ -27,6 +27,7 @@ export function eventStartModalView(current: Date | null) {
 export function extractEventStartDate(
 	values: Record<string, Record<string, any>>,
 ): string | null {
-	const raw: string = values[EVENT_START_BLOCK]?.[EVENT_START_ACTION]?.selected_date ?? ''
-	return raw.trim() || null
+	const raw = values[EVENT_START_BLOCK]?.[EVENT_START_ACTION]?.selected_date_time
+	if (typeof raw !== 'number' || !Number.isFinite(raw)) return null
+	return new Date(raw * 1000).toISOString()
 }

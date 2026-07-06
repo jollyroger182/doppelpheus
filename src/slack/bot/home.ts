@@ -53,7 +53,7 @@ export async function buildHomeView(userId: string) {
 	])
 
 	const eventStartLabel = eventStart
-		? eventStart.toISOString().slice(0, 10)
+		? `<!date^${Math.floor(eventStart.getTime() / 1000)}^{date_short} {time}|${eventStart.toISOString()}>`
 		: ':warning: not set'
 
 	return {

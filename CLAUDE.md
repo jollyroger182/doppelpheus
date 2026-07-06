@@ -25,6 +25,8 @@ Doppelpheus is a Slack bot that walks a user through linking their Hack Club Aut
 
 The codebase uses [`slack.ts`](https://www.npmjs.com/package/slack.ts) to construct **three** `App` instances against the same workspace, each with a distinct role. Keeping them straight is essential — participant-facing traffic goes through the selfbot (`app`), while `bot` is a real bot user reserved for admin work:
 
+> When unsure how something in `slack.ts` works (receiver internals, event dispatch, argument shapes, undocumented behavior), read its source directly under `node_modules/slack.ts/src/` rather than guessing or relying on the npm docs — the package is small and the source is the authoritative reference.
+
 - **`app`** — the **primary participant-facing selfbot**. Uses user-session auth (`xoxc` + `xoxd` cookie) with the **RTM receiver** to listen for DMs to the Doppel mascot user account and drive the onboarding conversation. Also used to open DM channels via `conversations.open`. This is the "selfbot" the program is built on.
 - **`bot`** — the **actual bot user** (`xoxb`) using the **fetch receiver** with signing-secret verification. Handles `/slack/events` HTTP webhook traffic (events, interactivity, button actions) and is used for admin-only tasks that require real bot capabilities. Not the primary participant channel.
 - **`userBot`** — a user token (`xoxp`) with no receiver, used purely to *send* DMs on behalf of the Doppel user (e.g. delivering the OAuth CTA buttons that Slack requires be sent by a user, not a bot).

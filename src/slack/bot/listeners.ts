@@ -14,17 +14,11 @@ import {
 	uploadModalView,
 } from './admin-upload'
 import { deleteProject } from '../../queries/project'
-import {
-	getLatestReviewForProject,
-	getReviewsForProjects,
-} from '../../queries/project-review'
+import { getLatestReviewForProject, getReviewsForProjects } from '../../queries/project-review'
 import { deleteShopItem, setShopItemEnabled } from '../../queries/shop-item'
 import { formatSeconds, getHackatimeProjectStats } from '../../hackatime'
 import { CONFIG_KEYS, getEventStartDate, isFeatureEnabled, setConfig } from '../../queries/config'
-import {
-	eventStartModalView,
-	extractEventStartDate,
-} from './modals/event-start'
+import { eventStartModalView, extractEventStartDate } from './modals/event-start'
 import {
 	extractProjectFormValues,
 	extractScreenshotFile,

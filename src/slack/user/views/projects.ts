@@ -18,7 +18,7 @@ import {
 function shippedSeconds(reviews: ProjectReview[]): number {
 	return reviews
 		.filter((r) => r.status === 'approved')
-		.reduce((acc, r) => acc + r.hackatimeSeconds + (r.hoursAdjustment ?? 0) * 3600, 0)
+		.reduce((acc, r) => acc + r.hackatimeSeconds, 0)
 }
 
 function renderProject(
@@ -27,10 +27,7 @@ function renderProject(
 	totalSeconds: number,
 	shippedTotalSeconds: number,
 ): AnyBlock[] {
-	const lines: string[] = [
-		`*${project.name}*${state.shipped ? '  :package: _shipped_' : ''}`,
-		project.description,
-	]
+	const lines: string[] = [`*${project.name}*`, project.description]
 	if (project.playableUrl) lines.push(`_demo:_ ${project.playableUrl}`)
 	if (project.codeUrl) lines.push(`_code:_ ${project.codeUrl}`)
 	if (project.hackatimeProjects.length)
@@ -49,21 +46,17 @@ function renderProject(
 	const result: AnyBlock[] = [bodyBlock]
 
 	if (state.underReview) {
-		result.push(
-			context("under review — you'll get a DM once we've made a decision").build(),
-		)
+		result.push(context("under review! we'll dm you when we're done :D").build())
 		return result
 	}
 
 	const shippable = isProjectShippable(project)
 	const buttons = [
 		button('edit').id('project.edit').value(value),
-		...(state.shipped
-			? []
-			: [button('delete').style('danger').id('project.delete').value(value)]),
+		...(state.shipped ? [] : [button('delete').style('danger').id('project.delete').value(value)]),
 		...(shippable
 			? [
-					button(state.shipped ? 're-ship' : 'ship it')
+					button(state.shipped ? 're-ship' : 'ship it!')
 						.style('primary')
 						.id('project.ship')
 						.value(value),
@@ -118,10 +111,7 @@ export async function buildProjectsView(userId: string): Promise<{
 		blocks: [
 			...blocks(header('your projects')),
 			...projectBlocks,
-			...blocks(
-				divider(),
-				actions(button('add project').style('primary').id('project.add')),
-			),
+			...blocks(divider(), actions(button('add project').style('primary').id('project.add'))),
 		],
 	}
 }

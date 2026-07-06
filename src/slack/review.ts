@@ -213,7 +213,7 @@ async function decideAndNotify(
 export async function approveReview(
 	reviewId: string,
 	reviewerId: string,
-	extras: { justification: string | null; hoursAdjustment: number | null },
+	extras: { justification: string; hoursAdjustment: number | null },
 ) {
 	return decideAndNotify(
 		reviewId,

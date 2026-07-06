@@ -76,7 +76,7 @@ export function projectModalView(project?: Project) {
 				optional: true,
 			}).build(),
 			...blocks(
-				input(fileInput().id(SCREENSHOT_ACTION).max(1))
+				input(fileInput('jpg', 'png', 'webp', 'jpeg').id(SCREENSHOT_ACTION).max(1))
 					.label('screenshot')
 					.optional()
 					.hint(

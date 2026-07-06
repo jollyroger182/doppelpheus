@@ -18,10 +18,9 @@ export function approveReasonModalView(reviewId: string) {
 				plainTextInput()
 					.multiline()
 					.id(APPROVE_JUSTIFICATION_ACTION)
-					.placeholder('why is this getting approved?'),
+					.placeholder('why is this getting approved? (this is sent to airtable so be specific)'),
 			)
 				.label('justification (private)')
-				.optional()
 				.id(APPROVE_JUSTIFICATION_BLOCK),
 			input(numberInput().decimal().id(APPROVE_HOURS_ACTION))
 				.label('hour adjustment (private)')
@@ -33,7 +32,7 @@ export function approveReasonModalView(reviewId: string) {
 }
 
 export interface ApproveDecisionValues {
-	justification: string | null
+	justification: string
 	hoursAdjustment: number | null
 }
 
@@ -43,11 +42,11 @@ export function extractApproveDecision(
 	const justificationRaw: string = (
 		values[APPROVE_JUSTIFICATION_BLOCK]?.[APPROVE_JUSTIFICATION_ACTION]?.value ?? ''
 	).trim()
-	const hoursRaw: string =
-		values[APPROVE_HOURS_BLOCK]?.[APPROVE_HOURS_ACTION]?.value ?? ''
+	const hoursRaw: string = values[APPROVE_HOURS_BLOCK]?.[APPROVE_HOURS_ACTION]?.value ?? ''
 	const hoursAdjustment = hoursRaw.trim() ? Number(hoursRaw) : null
 	return {
-		justification: justificationRaw || null,
-		hoursAdjustment: hoursAdjustment !== null && Number.isFinite(hoursAdjustment) ? hoursAdjustment : null,
+		justification: justificationRaw,
+		hoursAdjustment:
+			hoursAdjustment !== null && Number.isFinite(hoursAdjustment) ? hoursAdjustment : null,
 	}
 }
