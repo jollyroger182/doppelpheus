@@ -5,10 +5,7 @@ import { projectReviews, reviewStatus } from '../db/schema'
 export type ProjectReview = typeof projectReviews.$inferSelect
 export type ReviewStatus = (typeof reviewStatus.enumValues)[number]
 
-export async function createReview(
-	projectId: number,
-	hackatimeSeconds: Record<string, number>,
-) {
+export async function createReview(projectId: number, hackatimeSeconds: number) {
 	const [row] = await db
 		.insert(projectReviews)
 		.values({ projectId, status: 'pending', hackatimeSeconds })
@@ -25,6 +22,16 @@ export async function getLatestReviewForProject(projectId: number) {
 		.select()
 		.from(projectReviews)
 		.where(eq(projectReviews.projectId, projectId))
+		.orderBy(desc(projectReviews.createdAt))
+		.limit(1)
+	return rows[0]
+}
+
+export async function getLatestApprovedReviewForProject(projectId: number) {
+	const rows = await db
+		.select()
+		.from(projectReviews)
+		.where(and(eq(projectReviews.projectId, projectId), eq(projectReviews.status, 'approved')))
 		.orderBy(desc(projectReviews.createdAt))
 		.limit(1)
 	return rows[0]
@@ -55,7 +62,13 @@ export async function attachReviewMessage(id: string, channelId: string, message
 
 export async function decideReview(
 	id: string,
-	decision: { status: Exclude<ReviewStatus, 'pending'>; reviewerId: string; comment: string | null },
+	decision: {
+		status: Exclude<ReviewStatus, 'pending'>
+		reviewerId: string
+		comment: string | null
+		justification: string | null
+		hoursAdjustment: number | null
+	},
 ) {
 	const [row] = await db
 		.update(projectReviews)
@@ -63,6 +76,8 @@ export async function decideReview(
 			status: decision.status,
 			reviewerId: decision.reviewerId,
 			comment: decision.comment,
+			justification: decision.justification,
+			hoursAdjustment: decision.hoursAdjustment,
 			decidedAt: new Date(),
 		})
 		.where(and(eq(projectReviews.id, id), eq(projectReviews.status, 'pending')))

@@ -1,5 +1,7 @@
 import type { AnyBlock } from '@slack/types'
 import { actions, blocks, button, context, divider, header, image, section } from 'slack.ts'
+import { formatSeconds, getHackatimeProjectStats } from '../../../hackatime'
+import { getEventStartDate } from '../../../queries/config'
 import {
 	getProjectsByUserId,
 	isProjectShippable,
@@ -9,15 +11,32 @@ import {
 import {
 	computeReviewState,
 	getReviewsForProjects,
+	type ProjectReview,
 	type ProjectReviewState,
 } from '../../../queries/project-review'
 
-function renderProject(project: Project, state: ProjectReviewState): AnyBlock[] {
-	const lines: string[] = [`*${project.name}*`, project.description]
+function shippedSeconds(reviews: ProjectReview[]): number {
+	return reviews
+		.filter((r) => r.status === 'approved')
+		.reduce((acc, r) => acc + r.hackatimeSeconds + (r.hoursAdjustment ?? 0) * 3600, 0)
+}
+
+function renderProject(
+	project: Project,
+	state: ProjectReviewState,
+	totalSeconds: number,
+	shippedTotalSeconds: number,
+): AnyBlock[] {
+	const lines: string[] = [
+		`*${project.name}*${state.shipped ? '  :package: _shipped_' : ''}`,
+		project.description,
+	]
 	if (project.playableUrl) lines.push(`_demo:_ ${project.playableUrl}`)
 	if (project.codeUrl) lines.push(`_code:_ ${project.codeUrl}`)
 	if (project.hackatimeProjects.length)
 		lines.push(`_hackatime:_ ${project.hackatimeProjects.join(', ')}`)
+	lines.push(`_total time:_ ${formatSeconds(totalSeconds)}`)
+	lines.push(`_shipped time:_ ${formatSeconds(shippedTotalSeconds)}`)
 
 	const body = section(lines.join('\n'))
 	const bodyBlock = (
@@ -53,9 +72,7 @@ function renderProject(project: Project, state: ProjectReviewState): AnyBlock[] 
 	]
 	result.push(actions(...buttons).build())
 
-	if (state.shipped) {
-		result.push(context('✓ shipped').build())
-	} else if (state.lastRejectionComment) {
+	if (state.lastRejectionComment) {
 		result.push(context(`rejected: ${state.lastRejectionComment}`).build())
 	} else if (!shippable) {
 		const missing = missingShippableFields(project)
@@ -70,14 +87,29 @@ export async function buildProjectsView(userId: string): Promise<{
 	blocks: AnyBlock[]
 }> {
 	const list = await getProjectsByUserId(userId)
-	const reviewsByProject = await getReviewsForProjects(list.map((p) => p.id))
+	const [reviewsByProject, eventStart] = await Promise.all([
+		getReviewsForProjects(list.map((p) => p.id)),
+		getEventStartDate(),
+	])
+
+	// Single hackatime request for the whole render — spans event start → now.
+	const stats = list.length
+		? await getHackatimeProjectStats(userId, eventStart ?? new Date(0), new Date())
+		: []
+	const secondsByHackatimeProject = new Map(stats.map((s) => [s.project, s.seconds]))
 
 	const projectBlocks: AnyBlock[] = list.length
 		? list.flatMap((p, i) => {
-				const state = computeReviewState(reviewsByProject.get(p.id) ?? [])
+				const reviews = reviewsByProject.get(p.id) ?? []
+				const state = computeReviewState(reviews)
+				const totalSeconds = p.hackatimeProjects.reduce(
+					(acc, name) => acc + (secondsByHackatimeProject.get(name) ?? 0),
+					0,
+				)
+				const shipped = shippedSeconds(reviews)
 				return i === 0
-					? renderProject(p, state)
-					: [divider().build(), ...renderProject(p, state)]
+					? renderProject(p, state, totalSeconds, shipped)
+					: [divider().build(), ...renderProject(p, state, totalSeconds, shipped)]
 			})
 		: [section("you haven't created any projects yet!").build()]
 

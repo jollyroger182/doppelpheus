@@ -46,8 +46,9 @@ export async function syncApprovedProjectToAirtable(
 					'ZIP / Postal Code': address.postal_code,
 					Birthday: profile.identity.birthday,
 					'Optional - Override Hours Spent':
-						Object.values(review.hackatimeSeconds || {}).reduce((a, b) => a + b, 0) / 3600,
-					'Optional - Override Hours Spent Justification': 'TODO',
+						review.hackatimeSeconds / 3600 + (review.hoursAdjustment ?? 0),
+					'Optional - Override Hours Spent Justification':
+						review.justification ?? 'TODO',
 				},
 			}),
 		},

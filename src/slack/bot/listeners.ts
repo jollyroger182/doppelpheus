@@ -33,7 +33,8 @@ import {
 	projectModalView,
 	upsertProjectFromForm,
 } from './modals/project'
-import { extractRejectReason, rejectReasonModalView } from './modals/review-reject'
+import { approveReasonModalView, extractApproveDecision } from './modals/review-approve'
+import { extractRejectDecision, rejectReasonModalView } from './modals/review-reject'
 import { approveReview, rejectReview, submitProjectForReview } from '../review'
 import {
 	extractShopItemFormValues,
@@ -190,7 +191,16 @@ bot.on('action:button.review.approve', async (event) => {
 	if (!isAdmin(reviewerId)) return
 	const reviewId = event.value
 	if (!reviewId) return
-	await approveReview(reviewId, reviewerId)
+
+	const modal = await event.respond.modal(approveReasonModalView(reviewId))
+	let submission
+	try {
+		submission = await modal.wait.timeout(5 * 60_000).submit()
+	} catch {
+		return
+	}
+	const extras = extractApproveDecision(submission.values as any)
+	await approveReview(reviewId, reviewerId, extras)
 })
 
 bot.on('action:button.review.reject', async (event) => {
@@ -206,9 +216,12 @@ bot.on('action:button.review.reject', async (event) => {
 	} catch {
 		return
 	}
-	const reason = extractRejectReason(submission.values as any)
-	if (!reason) return
-	await rejectReview(reviewId, reviewerId, reason)
+	const decision = extractRejectDecision(submission.values as any)
+	if (!decision.reason) return
+	await rejectReview(reviewId, reviewerId, decision.reason, {
+		justification: decision.justification,
+		hoursAdjustment: decision.hoursAdjustment,
+	})
 })
 
 bot.on(`autocomplete.${HACKATIME_ACTION}`, async (event) => {

@@ -9,26 +9,20 @@ import {
 	attachReviewMessage,
 	createReview,
 	decideReview,
+	getLatestApprovedReviewForProject,
 	getLatestReviewForProject,
 	getReviewById,
 	type ProjectReview,
 } from '../queries/project-review'
 import { bot, userBot } from './client'
 
-function projectFieldBlocks(
-	project: Project,
-	hackatimeSeconds: Record<string, number> | null,
-): AnyBlock[] {
+function projectFieldBlocks(project: Project, hackatimeSeconds: number): AnyBlock[] {
 	const lines: string[] = [`*${project.name}*`, project.description]
 	if (project.playableUrl) lines.push(`_demo:_ ${project.playableUrl}`)
 	if (project.codeUrl) lines.push(`_code:_ ${project.codeUrl}`)
-	if (project.hackatimeProjects.length) {
-		const parts = project.hackatimeProjects.map((name) => {
-			const seconds = hackatimeSeconds?.[name]
-			return seconds !== undefined ? `${name} (${formatSeconds(seconds)})` : name
-		})
-		lines.push(`_hackatime:_ ${parts.join(', ')}`)
-	}
+	if (project.hackatimeProjects.length)
+		lines.push(`_hackatime:_ ${project.hackatimeProjects.join(', ')}`)
+	lines.push(`_hackatime time:_ ${formatSeconds(hackatimeSeconds)}`)
 
 	const body = section(lines.join('\n'))
 	return [
@@ -67,6 +61,13 @@ function buildDecidedReviewMessage(
 			? `✓ approved by <@${review.reviewerId}>`
 			: `✗ rejected by <@${review.reviewerId}>${review.comment ? `\n> ${review.comment}` : ''}`
 
+	const extras: string[] = []
+	if (review.justification) extras.push(`_justification (private):_ ${review.justification}`)
+	if (review.hoursAdjustment !== null && review.hoursAdjustment !== undefined) {
+		const sign = review.hoursAdjustment > 0 ? '+' : ''
+		extras.push(`_hour adjustment (private):_ ${sign}${review.hoursAdjustment}h`)
+	}
+
 	return {
 		text: `project ${review.status}: ${project.name}`,
 		blocks: [
@@ -76,6 +77,7 @@ function buildDecidedReviewMessage(
 			),
 			...projectFieldBlocks(project, review.hackatimeSeconds),
 			...blocks(divider(), context(decisionLine)),
+			...(extras.length ? blocks(context(extras.join('\n'))) : []),
 		],
 	}
 }
@@ -113,14 +115,17 @@ export async function submitProjectForReview(
 		return { ok: false, reason: 'no_channel' }
 	}
 
+	// Only APPROVED reviews reset the counting window — a rejected review still
+	// counts its hours toward the next attempt, since the participant had to keep
+	// iterating on the same work.
 	const windowEnd = new Date()
-	const windowStart = latest?.createdAt ?? (await getEventStartDate()) ?? new Date(0)
+	const lastApproved = await getLatestApprovedReviewForProject(projectId)
+	const windowStart = lastApproved?.createdAt ?? (await getEventStartDate()) ?? new Date(0)
 	const stats = await getHackatimeProjectStats(userId, windowStart, windowEnd)
 	const selected = new Set(project.hackatimeProjects)
-	const hackatimeSeconds: Record<string, number> = {}
-	for (const stat of stats) {
-		if (selected.has(stat.project)) hackatimeSeconds[stat.project] = stat.seconds
-	}
+	const hackatimeSeconds = stats
+		.filter((s) => selected.has(s.project))
+		.reduce((acc, s) => acc + s.seconds, 0)
 
 	const review = await createReview(projectId, hackatimeSeconds)
 	const posted = await bot.channel(REVIEWS_CHANNEL).send(buildReviewMessage(project, review))
@@ -136,11 +141,19 @@ async function decideAndNotify(
 	reviewerId: string,
 	status: 'approved' | 'rejected',
 	comment: string | null,
+	justification: string | null,
+	hoursAdjustment: number | null,
 ) {
 	const existing = await getReviewById(reviewId)
 	if (!existing || existing.status !== 'pending') return null
 
-	const decided = await decideReview(reviewId, { status, reviewerId, comment })
+	const decided = await decideReview(reviewId, {
+		status,
+		reviewerId,
+		comment,
+		justification,
+		hoursAdjustment,
+	})
 	if (!decided) return null
 
 	const project = await getProjectWithUserById(decided.projectId)
@@ -153,17 +166,17 @@ async function decideAndNotify(
 			? {
 					text: `your project "${project.name}" was approved!`,
 					blocks: blocks(
-						section(`🎉 your project *${project.name}* was approved!`),
-						context('nice work — it will show up in the shop soon.'),
+						section(`haii! your project *${project.name}* was approved! :doppel-bounce:`),
+						context('say `projects` to see the details :3'),
 					),
 				}
 			: {
-					text: `your project "${project.name}" needs some changes`,
+					text: `your project "${project.name}" was rejected :(`,
 					blocks: blocks(
 						section(
-							`your project *${project.name}* wasn't approved yet.\n\n>${(comment ?? '').replace(/\n/g, '\n>')}`,
+							`your project *${project.name}* was rejected :(\n\n>${(comment ?? '').replace(/\n/g, '\n>')}`,
 						),
-						context('edit your project to address the feedback, then ship it again.'),
+						context('fix the issues above, and resubmit your project!'),
 					),
 				}
 
@@ -191,14 +204,39 @@ async function decideAndNotify(
 		projectId: project.id,
 		userId: project.userId,
 		comment,
+		justification,
+		hoursAdjustment,
 	})
 	return decided
 }
 
-export async function approveReview(reviewId: string, reviewerId: string) {
-	return decideAndNotify(reviewId, reviewerId, 'approved', null)
+export async function approveReview(
+	reviewId: string,
+	reviewerId: string,
+	extras: { justification: string | null; hoursAdjustment: number | null },
+) {
+	return decideAndNotify(
+		reviewId,
+		reviewerId,
+		'approved',
+		null,
+		extras.justification,
+		extras.hoursAdjustment,
+	)
 }
 
-export async function rejectReview(reviewId: string, reviewerId: string, comment: string) {
-	return decideAndNotify(reviewId, reviewerId, 'rejected', comment)
+export async function rejectReview(
+	reviewId: string,
+	reviewerId: string,
+	comment: string,
+	extras: { justification: string | null; hoursAdjustment: number | null },
+) {
+	return decideAndNotify(
+		reviewId,
+		reviewerId,
+		'rejected',
+		comment,
+		extras.justification,
+		extras.hoursAdjustment,
+	)
 }
