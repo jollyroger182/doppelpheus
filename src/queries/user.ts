@@ -1,6 +1,8 @@
 import { db } from '../db'
 import { users } from '../db/schema'
 
+export type User = typeof users.$inferSelect
+
 export async function createUser(id: string) {
 	const [user] = await db.insert(users).values({ id }).onConflictDoNothing().returning()
 	return user

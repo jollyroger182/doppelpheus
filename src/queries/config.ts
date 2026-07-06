@@ -19,4 +19,12 @@ export async function isFeatureEnabled(key: string): Promise<boolean> {
 
 export const CONFIG_KEYS = {
 	shopEnabled: 'shop_enabled',
+	eventStartDate: 'event_start_date',
 } as const
+
+export async function getEventStartDate(): Promise<Date | null> {
+	const raw = await getConfig(CONFIG_KEYS.eventStartDate)
+	if (!raw) return null
+	const parsed = new Date(raw)
+	return Number.isNaN(parsed.getTime()) ? null : parsed
+}

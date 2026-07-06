@@ -1,7 +1,6 @@
-import { blocks, context, plain, section } from 'slack.ts'
+import { blocks, context, option, plain, section } from 'slack.ts'
 import { LINK_HACKATIME_MESSAGE, WELCOME_MESSAGE } from '../../consts'
 import { logAudit } from '../../queries/audit-log'
-import { CONFIG_KEYS, isFeatureEnabled, setConfig } from '../../queries/config'
 import { app, bot, userBot } from '../client'
 import {
 	notifyUploadError,
@@ -15,14 +14,22 @@ import {
 	uploadModalView,
 } from './admin-upload'
 import { deleteProject } from '../../queries/project'
+import { getLatestReviewForProject, getReviewsForProjects } from '../../queries/project-review'
 import { deleteShopItem, setShopItemEnabled } from '../../queries/shop-item'
+import { formatSeconds, getHackatimeProjectStats } from '../../hackatime'
+import { CONFIG_KEYS, getEventStartDate, isFeatureEnabled, setConfig } from '../../queries/config'
+import { eventStartModalView, extractEventStartDate } from './modals/event-start'
 import {
 	extractProjectFormValues,
 	extractScreenshotFile,
 	getProjectForEdit,
+	HACKATIME_ACTION,
 	projectModalView,
 	upsertProjectFromForm,
 } from './modals/project'
+import { approveReasonModalView, extractApproveDecision } from './modals/review-approve'
+import { extractRejectDecision, rejectReasonModalView } from './modals/review-reject'
+import { approveReview, rejectReview, submitProjectForReview } from '../review'
 import {
 	extractShopItemFormValues,
 	getShopItemForAdmin,
@@ -105,6 +112,12 @@ bot.on('action:button.project.edit', async (event) => {
 	const project = await getProjectForEdit(userId, projectId)
 	if (!project) return
 
+	const latest = await getLatestReviewForProject(projectId)
+	if (latest?.status === 'pending') {
+		logAudit('project.edit.blocked', userId, { id: projectId, reason: 'under_review' })
+		return
+	}
+
 	const modal = await event.respond.modal(projectModalView(project))
 	let submission
 	try {
@@ -130,9 +143,91 @@ bot.on('action:button.project.delete', async (event) => {
 	const project = await getProjectForEdit(userId, projectId)
 	if (!project) return
 
+	const latest = await getLatestReviewForProject(projectId)
+	if (latest?.status === 'pending') {
+		logAudit('project.delete.blocked', userId, { id: projectId, reason: 'under_review' })
+		return
+	}
+	// shipped projects (any approved review) cannot be deleted
+	const reviews = await getReviewsForProjects([projectId])
+	const list = reviews.get(projectId) ?? []
+	if (list.some((r) => r.status === 'approved')) {
+		logAudit('project.delete.blocked', userId, { id: projectId, reason: 'shipped' })
+		return
+	}
+
 	await deleteProject(projectId)
 	logAudit('project.deleted', userId, { id: projectId })
 	await event.respond.edit(await buildProjectsView(userId))
+})
+
+bot.on('action:button.project.ship', async (event) => {
+	if (event.event.container.type !== 'message') return
+	const { channel_id, message_ts } = event.event.container
+
+	const userId = event.event.user.id
+	const projectId = Number(event.value)
+	if (!Number.isFinite(projectId)) return
+
+	const result = await submitProjectForReview(userId, projectId)
+	if (!result.ok) {
+		logAudit('project.ship.blocked', userId, { id: projectId, reason: result.reason })
+	}
+
+	await userBot
+		.channel(channel_id)
+		.message(message_ts)
+		.edit(await buildProjectsView(userId))
+})
+
+bot.on('action:button.review.approve', async (event) => {
+	const reviewerId = event.event.user.id
+	if (!isAdmin(reviewerId)) return
+	const reviewId = event.value
+	if (!reviewId) return
+
+	const modal = await event.respond.modal(approveReasonModalView(reviewId))
+	let submission
+	try {
+		submission = await modal.wait.timeout(5 * 60_000).submit()
+	} catch {
+		return
+	}
+	const extras = extractApproveDecision(submission.values as any)
+	await approveReview(reviewId, reviewerId, extras)
+})
+
+bot.on('action:button.review.reject', async (event) => {
+	const reviewerId = event.event.user.id
+	if (!isAdmin(reviewerId)) return
+	const reviewId = event.value
+	if (!reviewId) return
+
+	const modal = await event.respond.modal(rejectReasonModalView(reviewId))
+	let submission
+	try {
+		submission = await modal.wait.timeout(5 * 60_000).submit()
+	} catch {
+		return
+	}
+	const decision = extractRejectDecision(submission.values as any)
+	if (!decision.reason) return
+	await rejectReview(reviewId, reviewerId, decision.reason, {
+		justification: decision.justification,
+		hoursAdjustment: decision.hoursAdjustment,
+	})
+})
+
+bot.on(`autocomplete.${HACKATIME_ACTION}`, async (event) => {
+	const payload = event as any
+	const userId: string = payload.user?.id ?? ''
+	const query: string = (payload.value ?? '').toString().toLowerCase()
+	const start = (await getEventStartDate()) ?? new Date(0)
+	const stats = await getHackatimeProjectStats(userId, start, new Date())
+	const matches = stats
+		.filter((s) => s.project.toLowerCase().includes(query))
+		.map((s) => option(`${s.project} (${formatSeconds(s.seconds)})`, s.project))
+	await event.respond(...matches)
 })
 
 // admin
@@ -152,6 +247,24 @@ bot.on('action:button.admin.toggle_shop', async (event) => {
 	const nowEnabled = !(await isFeatureEnabled(CONFIG_KEYS.shopEnabled))
 	await setConfig(CONFIG_KEYS.shopEnabled, nowEnabled ? 'true' : 'false')
 	logAudit('admin.toggle_shop', userId, { enabled: nowEnabled })
+	await republishHome(userId)
+})
+
+bot.on('action:button.admin.event_start.edit', async (event) => {
+	const userId = event.event.user.id
+	if (!isAdmin(userId)) return
+	const current = await getEventStartDate()
+	const modal = await event.respond.modal(eventStartModalView(current))
+	let submission
+	try {
+		submission = await modal.wait.timeout(5 * 60_000).submit()
+	} catch {
+		return
+	}
+	const dateStr = extractEventStartDate(submission.values as any)
+	if (!dateStr) return
+	await setConfig(CONFIG_KEYS.eventStartDate, dateStr)
+	logAudit('admin.event_start.set', userId, { date: dateStr })
 	await republishHome(userId)
 })
 
