@@ -2,7 +2,8 @@ import { actions, blocks, context, option, R, richText, section, select } from '
 import { userBot } from '../client'
 import { FAQ_CANVAS } from '../../consts'
 import { CONFIG_KEYS, isFeatureEnabled } from '../../queries/config'
-import { getEnabledShopItems } from '../../queries/shop-item'
+import { getEnabledShopItems, getShopItemById } from '../../queries/shop-item'
+import { getPurchasesByUser } from '../../queries/purchase'
 import { getUserBalanceMinutes, getUserById } from '../../queries/user'
 import { getHCAProfile, pickHCAAddress, formatHCAAddress } from '../../utils'
 import { buildProjectsView } from './views/projects'
@@ -36,6 +37,7 @@ export const keywordHandlers: KeywordHandler[] = [
 						R.list(
 							R.section(R.text('projects').bold(), ' to see your projects'),
 							R.section(R.text('prizes').bold(), ' to browse prizes'),
+							R.section(R.text('purchases').bold(), ' to see your purchases'),
 							R.section(R.text('settings').bold(), ' to change your shipping address'),
 							R.section(R.text('help').bold(), ' to view this message!'),
 						),
@@ -83,6 +85,42 @@ export const keywordHandlers: KeywordHandler[] = [
 						select(...items.map((i) => option(`${i.name} (${formatHours(i.priceMinutes)}h)`, i.id)))
 							.id(SHOP_BUY_ACTION)
 							.placeholder('buy something...'),
+					),
+				),
+			})
+		},
+	},
+	{
+		keywords: ['purchases', 'purchase', 'orders', 'order'],
+		send: async (userId) => {
+			const purchases = await getPurchasesByUser(userId)
+			if (!purchases.length) {
+				return userBot
+					.user(userId)
+					.send("you haven't bought anything yet! send `prizes` to browse the shop :3")
+			}
+			const items = await Promise.all(
+				purchases.map(async (p) => ({ purchase: p, item: await getShopItemById(p.shopItemId) })),
+			)
+			const statusText = {
+				pending: 'under review',
+				fulfilled: 'order completed!',
+				refunded: 'refunded to your balance',
+			} as const
+			const text = 'here are your purchases :3'
+			return userBot.user(userId).send({
+				text,
+				blocks: blocks(
+					section(text),
+					richText(
+						R.list(
+							...items.map(({ purchase, item }) =>
+								R.section(
+									R.text(item?.name ?? '(deleted item)').bold(),
+									` (${formatHours(purchase.priceMinutes)}h): ${statusText[purchase.status]}`,
+								),
+							),
+						),
 					),
 				),
 			})
