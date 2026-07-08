@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { authAttempts, projectReviews, projects, users } from '../db/schema'
 
@@ -34,6 +34,24 @@ export async function getUserSignupAt(userId: string): Promise<Date> {
 		.orderBy(asc(authAttempts.createdAt))
 		.limit(1)
 	return row?.createdAt ?? new Date()
+}
+
+export async function getUserBalanceMinutes(userId: string): Promise<number | null> {
+	const [row] = await db
+		.select({ balanceMinutes: users.balanceMinutes })
+		.from(users)
+		.where(eq(users.id, userId))
+		.limit(1)
+	return row?.balanceMinutes ?? null
+}
+
+export async function adjustUserBalance(userId: string, deltaMinutes: number): Promise<number | null> {
+	const [row] = await db
+		.update(users)
+		.set({ balanceMinutes: sql`${users.balanceMinutes} + ${deltaMinutes}` })
+		.where(eq(users.id, userId))
+		.returning({ balanceMinutes: users.balanceMinutes })
+	return row?.balanceMinutes ?? null
 }
 
 export async function getUserLastShipAt(userId: string): Promise<Date | null> {

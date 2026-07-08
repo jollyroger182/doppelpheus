@@ -15,6 +15,7 @@ export const users = pgTable('users', {
 	id: text().primaryKey(),
 	hcaToken: text(),
 	hackatimeToken: text(),
+	balanceMinutes: integer().notNull().default(0),
 })
 
 export const authAttempts = pgTable('auth_attempts', {
@@ -89,6 +90,22 @@ export const shopItems = pgTable('shop_items', {
 	enabled: boolean().notNull().default(false),
 	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 })
+
+export const purchases = pgTable(
+	'purchases',
+	{
+		id: uuid().primaryKey().defaultRandom(),
+		userId: text()
+			.notNull()
+			.references(() => users.id),
+		shopItemId: uuid()
+			.notNull()
+			.references(() => shopItems.id),
+		priceMinutes: integer().notNull(),
+		createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+	},
+	(table) => [index().on(table.userId), index().on(table.shopItemId)],
+)
 
 export const auditLog = pgTable(
 	'audit_log',

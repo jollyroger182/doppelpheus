@@ -5,6 +5,7 @@ import { formatSeconds, getHackatimeProjectStats } from '../hackatime'
 import { logAudit } from '../queries/audit-log'
 import { getEventStartDate } from '../queries/config'
 import { getProjectWithUserById, isProjectShippable, type Project } from '../queries/project'
+import { adjustUserBalance } from '../queries/user'
 import {
 	attachReviewMessage,
 	createReview,
@@ -204,6 +205,22 @@ async function decideAndNotify(
 	}
 
 	if (status === 'approved') {
+		const adjustmentSeconds = Math.round((hoursAdjustment ?? 0) * 3600)
+		const creditMinutes = Math.max(
+			0,
+			Math.round(((hackatimeSeconds ?? 0) + adjustmentSeconds) / 60),
+		)
+		if (creditMinutes > 0) {
+			const newBalance = await adjustUserBalance(project.userId, creditMinutes)
+			logAudit('user.balance.credit', reviewerId, {
+				userId: project.userId,
+				reviewId,
+				projectId: project.id,
+				minutes: creditMinutes,
+				newBalanceMinutes: newBalance,
+			})
+		}
+
 		try {
 			await syncApprovedProjectToAirtable(project, decided)
 		} catch (err) {

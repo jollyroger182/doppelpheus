@@ -36,6 +36,11 @@ import {
 	shopItemModalView,
 	upsertShopItemFromForm,
 } from './modals/shop-item'
+import {
+	applyUserBalanceAdjustment,
+	extractUserBalanceFormValues,
+	userBalanceModalView,
+} from './modals/user-balance'
 import { buildProjectsView } from '../user/views/projects'
 import { buildHomeView, isAdmin } from './home'
 import { getUploadedFileId } from '../../queries/uploaded-file'
@@ -331,6 +336,22 @@ bot.on('action:button.admin.shop_item.delete', async (event) => {
 	if (!itemId) return
 	await deleteShopItem(itemId)
 	logAudit('admin.shop_item.deleted', userId, { id: itemId })
+	await republishHome(userId)
+})
+
+bot.on('action:button.admin.user_balance.adjust', async (event) => {
+	const userId = event.event.user.id
+	if (!isAdmin(userId)) return
+	const modal = await event.respond.modal(userBalanceModalView())
+	let submission
+	try {
+		submission = await modal.wait.timeout(5 * 60_000).submit()
+	} catch {
+		return
+	}
+	const form = extractUserBalanceFormValues(submission.values as any)
+	if ('error' in form) return
+	await applyUserBalanceAdjustment(userId, form)
 	await republishHome(userId)
 })
 

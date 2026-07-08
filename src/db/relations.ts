@@ -5,6 +5,7 @@ export const relations = defineRelations(schema, (r) => ({
 	users: {
 		projects: r.many.projects(),
 		authAttempts: r.many.authAttempts(),
+		purchases: r.many.purchases(),
 	},
 	authAttempts: {
 		user: r.one.users({
@@ -27,5 +28,20 @@ export const relations = defineRelations(schema, (r) => ({
 			to: r.projects.id,
 			optional: false,
 		}),
+	},
+	purchases: {
+		user: r.one.users({
+			from: r.purchases.userId,
+			to: r.users.id,
+			optional: false,
+		}),
+		shopItem: r.one.shopItems({
+			from: r.purchases.shopItemId,
+			to: r.shopItems.id,
+			optional: false,
+		}),
+	},
+	shopItems: {
+		purchases: r.many.purchases(),
 	},
 }))

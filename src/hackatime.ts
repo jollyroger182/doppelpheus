@@ -27,7 +27,6 @@ export async function getHackatimeProjectStats(
 		return []
 	}
 	const data = (await resp.json()) as { projects: { name: string; total_seconds: number }[] }
-	console.log(data)
 
 	return data.projects.map((p) => ({ project: p.name, seconds: p.total_seconds }))
 }

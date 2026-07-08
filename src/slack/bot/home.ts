@@ -87,6 +87,7 @@ export async function buildHomeView(userId: string) {
 				button(plain(':heavy_plus_sign: add shop item').emoji())
 					.style('primary')
 					.id('admin.shop_item.add'),
+				button(plain(':moneybag: adjust user balance').emoji()).id('admin.user_balance.adjust'),
 			),
 			divider(),
 			header('recent activity'),
