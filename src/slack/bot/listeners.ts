@@ -44,11 +44,31 @@ import {
 import { buildProjectsView } from '../user/views/projects'
 import { buildHomeView, isAdmin } from './home'
 import { getUploadedFileId } from '../../queries/uploaded-file'
-import { SHOP_BUY_ACTION } from '../user/keywords'
+import { SETTINGS_ADDRESS_ACTION, SHOP_BUY_ACTION } from '../user/keywords'
 import { getShopItemById } from '../../queries/shop-item'
-import { debitUserBalanceIfSufficient, getUserBalanceMinutes } from '../../queries/user'
-import { createPurchase } from '../../queries/purchase'
-import { purchaseConfirmModalView, purchaseInsufficientModalView } from './modals/shop-purchase'
+import {
+	adjustUserBalance,
+	debitUserBalanceIfSufficient,
+	getUserBalanceMinutes,
+	getUserById,
+	setSelectedHcaAddressId,
+} from '../../queries/user'
+import {
+	attachPurchaseMessage,
+	createPurchase,
+	getPurchaseById,
+	setPurchaseStatus,
+	type PurchaseStatus,
+} from '../../queries/purchase'
+import {
+	buildPurchaseChannelMessage,
+	insufficientFundsMessage,
+	NO_ADDRESS_MESSAGE,
+	purchaseConfirmModalView,
+	PURCHASE_STATUS_ACTION,
+	PURCHASE_VIEW_ADDRESS_ACTION,
+} from './modals/shop-purchase'
+import { formatHCAAddress, getHCAProfile, pickHCAAddress } from '../../utils'
 
 bot.on('action:button.link_hca', async (event) => {
 	logAudit('auth.hca.clicked', event.event.user.id, { state: event.value })
@@ -370,11 +390,29 @@ bot.on(`action:static_select.${SHOP_BUY_ACTION}`, async (event) => {
 
 	const balance = (await getUserBalanceMinutes(userId)) ?? 0
 	if (balance < item.priceMinutes) {
-		await event.respond.modal(purchaseInsufficientModalView(item, balance))
+		await userBot.user(userId).send(insufficientFundsMessage(item, balance))
 		return
 	}
 
-	const modal = await event.respond.modal(purchaseConfirmModalView(item, balance))
+	const buyer = await getUserById(userId)
+	if (!buyer?.hcaToken) {
+		await userBot.user(userId).send(NO_ADDRESS_MESSAGE)
+		return
+	}
+	let address = null
+	try {
+		const profile = await getHCAProfile(buyer.hcaToken)
+		address = pickHCAAddress(profile, buyer.selectedHcaAddressId)
+	} catch (err) {
+		console.error('failed to fetch buyer address for confirm modal', err)
+	}
+	if (!address) {
+		logAudit('shop.purchase.no_address', userId, { itemId })
+		await userBot.user(userId).send(NO_ADDRESS_MESSAGE)
+		return
+	}
+
+	const modal = await event.respond.modal(purchaseConfirmModalView(item, balance, address))
 	try {
 		await modal.wait.timeout(5 * 60_000).submit()
 	} catch {
@@ -406,16 +444,12 @@ bot.on(`action:static_select.${SHOP_BUY_ACTION}`, async (event) => {
 	const { PURCHASES_CHANNEL } = process.env
 	if (PURCHASES_CHANNEL) {
 		try {
-			const hours = (item.priceMinutes / 60).toFixed(1).replace(/\.0$/, '')
-			await bot.channel(PURCHASES_CHANNEL).send({
-				text: `<@${userId}> bought *${item.name}* (${hours}h)`,
-				blocks: blocks(
-					section(
-						`:shopping_bags: <@${userId}> bought *${item.name}* — *${hours}h*\n_${item.description}_`,
-					),
-					context(`purchase id: \`${purchase.id}\``, `status: \`${purchase.status}\``),
-				),
-			})
+			const posted = await bot
+				.channel(PURCHASES_CHANNEL)
+				.send(buildPurchaseChannelMessage(purchase, item))
+			if (posted) {
+				await attachPurchaseMessage(purchase.id, PURCHASES_CHANNEL, posted.ts)
+			}
 		} catch (err) {
 			console.error('failed to notify purchases channel', err)
 		}
@@ -438,6 +472,160 @@ bot.on(`action:static_select.${SHOP_BUY_ACTION}`, async (event) => {
 	} catch (err) {
 		console.error('failed to DM participant about purchase', err)
 	}
+})
+
+bot.on(`action:static_select.${SETTINGS_ADDRESS_ACTION}`, async (event) => {
+	const userId = event.event.user.id
+	const addressId = (event as any).event?.actions?.[0]?.selected_option?.value as string | undefined
+	if (!addressId) return
+
+	const user = await getUserById(userId)
+	if (!user?.hcaToken) return
+
+	let profile
+	try {
+		profile = await getHCAProfile(user.hcaToken)
+	} catch {
+		return
+	}
+	const match = (profile.identity.addresses ?? []).find((a) => a.id === addressId)
+	if (!match) return
+
+	await setSelectedHcaAddressId(userId, addressId)
+	logAudit('settings.address.updated', userId, { addressId })
+
+	try {
+		await userBot.user(userId).send({
+			text: 'address updated!',
+			blocks: blocks(
+				section(`updated your shipping address to:\n\`\`\`\n${formatHCAAddress(match)}\n\`\`\``),
+			),
+		})
+	} catch (err) {
+		console.error('failed to DM address confirmation', err)
+	}
+})
+
+bot.on(`action:static_select.${PURCHASE_STATUS_ACTION}`, async (event) => {
+	const adminId = event.event.user.id
+	if (!isAdmin(adminId)) return
+
+	const raw = (event as any).event?.actions?.[0]?.selected_option?.value as string | undefined
+	if (!raw) return
+	const [purchaseId, nextStatusRaw] = raw.split('|')
+	if (!purchaseId || !nextStatusRaw) return
+	const nextStatus = nextStatusRaw as PurchaseStatus
+
+	const purchase = await getPurchaseById(purchaseId)
+	if (!purchase) return
+	if (purchase.status === nextStatus) return
+
+	const item = await getShopItemById(purchase.shopItemId)
+
+	// refund the balance if transitioning into refunded; reverse the credit if leaving refunded
+	if (nextStatus === 'refunded' && purchase.status !== 'refunded') {
+		await adjustUserBalance(purchase.userId, purchase.priceMinutes)
+	} else if (purchase.status === 'refunded' && nextStatus !== 'refunded') {
+		await adjustUserBalance(purchase.userId, -purchase.priceMinutes)
+	}
+
+	const updated = await setPurchaseStatus(purchaseId, nextStatus)
+	if (!updated) return
+
+	logAudit('shop.purchase.status_changed', adminId, {
+		purchaseId,
+		userId: purchase.userId,
+		from: purchase.status,
+		to: nextStatus,
+	})
+
+	if (purchase.channelId && purchase.messageTs) {
+		try {
+			await bot
+				.channel(purchase.channelId)
+				.message(purchase.messageTs)
+				.edit(
+					buildPurchaseChannelMessage(updated, {
+						name: item?.name ?? '(deleted item)',
+						description: item?.description ?? '',
+					}),
+				)
+		} catch (err) {
+			console.error('failed to edit purchases channel message', err)
+		}
+	}
+
+	const hours = (purchase.priceMinutes / 60).toFixed(1).replace(/\.0$/, '')
+	const itemName = item?.name ?? 'your prize'
+	let dm: { text: string; blocks?: any } | null = null
+	if (nextStatus === 'fulfilled') {
+		dm = {
+			text: `${itemName} has been fulfilled!`,
+			blocks: blocks(
+				section(
+					`:yayayayayay: *${itemName}* has been fulfilled! it's on its way to you :doppel-banana:`,
+				),
+			),
+		}
+	} else if (nextStatus === 'refunded') {
+		dm = {
+			text: `${itemName} was refunded`,
+			blocks: blocks(
+				section(
+					`your purchase of *${itemName}* was refunded, and *${hours}h* have been returned to your balance.`,
+				),
+			),
+		}
+	} else if (nextStatus === 'pending') {
+		dm = {
+			text: `${itemName} has been reverted to pending`,
+			blocks: blocks(section(`your purchase of *${itemName}* has been reverted to pending.`)),
+		}
+	}
+	if (dm) {
+		try {
+			await userBot.user(purchase.userId).send(dm)
+		} catch (err) {
+			console.error('failed to DM purchase status change', err)
+		}
+	}
+})
+
+bot.on(`action:button.${PURCHASE_VIEW_ADDRESS_ACTION}`, async (event) => {
+	const adminId = event.event.user.id
+	if (!isAdmin(adminId)) return
+	const purchaseId = event.value
+	if (!purchaseId) return
+
+	const purchase = await getPurchaseById(purchaseId)
+	if (!purchase) return
+
+	const target = await getUserById(purchase.userId)
+	logAudit('shop.purchase.address_viewed', adminId, {
+		purchaseId,
+		userId: purchase.userId,
+	})
+
+	let body: string
+	if (!target?.hcaToken) {
+		body = 'user has no HCA token linked.'
+	} else {
+		try {
+			const profile = await getHCAProfile(target.hcaToken)
+			const address = pickHCAAddress(profile, target.selectedHcaAddressId)
+			body = address
+				? `\`\`\`\n${formatHCAAddress(address)}\n\`\`\``
+				: 'user has no addresses on file at hack club auth.'
+		} catch (err) {
+			body = 'failed to fetch address from hack club auth.'
+		}
+	}
+
+	await event.respond.message({
+		text: `<@${purchase.userId}>'s shipping address`,
+		blocks: blocks(section(`<@${purchase.userId}>'s shipping address:`), section(body)),
+		ephemeral: true,
+	})
 })
 
 bot.on('action:button.admin.upload_file', async (event) => {

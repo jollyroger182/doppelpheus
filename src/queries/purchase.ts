@@ -30,3 +30,12 @@ export async function setPurchaseStatus(id: string, status: PurchaseStatus) {
 		.returning()
 	return row
 }
+
+export async function attachPurchaseMessage(id: string, channelId: string, messageTs: string) {
+	const [row] = await db
+		.update(purchases)
+		.set({ channelId, messageTs })
+		.where(eq(purchases.id, id))
+		.returning()
+	return row
+}

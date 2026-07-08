@@ -16,6 +16,7 @@ export const users = pgTable('users', {
 	hcaToken: text(),
 	hackatimeToken: text(),
 	balanceMinutes: integer().notNull().default(0),
+	selectedHcaAddressId: text(),
 })
 
 export const authAttempts = pgTable('auth_attempts', {
@@ -105,6 +106,8 @@ export const purchases = pgTable(
 			.references(() => shopItems.id),
 		priceMinutes: integer().notNull(),
 		status: purchaseStatus().notNull().default('pending'),
+		channelId: text(),
+		messageTs: text(),
 		createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 	},
 	(table) => [index().on(table.userId), index().on(table.shopItemId), index().on(table.status)],

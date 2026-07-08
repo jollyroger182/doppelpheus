@@ -36,6 +36,19 @@ export async function getUserSignupAt(userId: string): Promise<Date> {
 	return row?.createdAt ?? new Date()
 }
 
+export async function setSelectedHcaAddressId(userId: string, addressId: string | null) {
+	const [row] = await db
+		.update(users)
+		.set({ selectedHcaAddressId: addressId })
+		.where(eq(users.id, userId))
+		.returning()
+	return row
+}
+
+export async function getUserById(userId: string) {
+	return db.query.users.findFirst({ where: { id: userId } })
+}
+
 export async function getUserBalanceMinutes(userId: string): Promise<number | null> {
 	const [row] = await db
 		.select({ balanceMinutes: users.balanceMinutes })

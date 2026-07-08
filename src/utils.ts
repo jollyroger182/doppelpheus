@@ -34,6 +34,32 @@ export interface HCAProfile {
 	scopes: string[]
 }
 
+export function pickHCAAddress(
+	profile: HCAProfile,
+	selectedId: string | null,
+): HCAAddress | null {
+	const addresses = profile.identity.addresses ?? []
+	if (!addresses.length) return null
+	if (selectedId) {
+		const match = addresses.find((a) => a.id === selectedId)
+		if (match) return match
+	}
+	return addresses.find((a) => a.primary) ?? addresses[0]!
+}
+
+export function formatHCAAddress(a: HCAAddress): string {
+	const nameLine = `${a.first_name} ${a.last_name}`.trim()
+	const parts = [
+		nameLine,
+		a.line_1,
+		a.line_2,
+		[a.city, a.state, a.postal_code].filter(Boolean).join(', '),
+		a.country,
+		a.phone_number,
+	].filter(Boolean)
+	return parts.join('\n')
+}
+
 export interface HCAAddress {
 	id: string
 	first_name: string
