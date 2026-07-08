@@ -1,9 +1,13 @@
-import { blocks, context, R, richText, section } from 'slack.ts'
+import { actions, blocks, context, option, R, richText, section, select } from 'slack.ts'
 import { userBot } from '../client'
 import { FAQ_CANVAS } from '../../consts'
 import { CONFIG_KEYS, isFeatureEnabled } from '../../queries/config'
 import { getEnabledShopItems } from '../../queries/shop-item'
+import { getUserBalanceMinutes } from '../../queries/user'
 import { buildProjectsView } from './views/projects'
+
+export const SHOP_BUY_ACTION = 'shop.buy'
+const formatHours = (minutes: number) => (minutes / 60).toFixed(1).replace(/\.0$/, '')
 
 const SHOP_NOT_READY_MESSAGE = 'the prizes are not ready yet! please check back later :3'
 
@@ -22,7 +26,11 @@ export const keywordHandlers: KeywordHandler[] = [
 				text: `hello there human i hear you are in need of help? i'm doppel from <#${MAIN_CHANNEL}> and here's what i can do:`,
 				blocks: blocks(
 					richText(
-						R.section("hello there human i hear you are in need of help? i'm doppel from ", R.channel(MAIN_CHANNEL!), " and here's what i can do:"),
+						R.section(
+							"hello there human i hear you are in need of help? i'm doppel from ",
+							R.channel(MAIN_CHANNEL!),
+							" and here's what i can do:",
+						),
 						R.list(
 							R.section(R.text('projects').bold(), ' to see your projects'),
 							R.section(R.text('prizes').bold(), ' to browse prizes'),
@@ -52,6 +60,7 @@ export const keywordHandlers: KeywordHandler[] = [
 				return userBot.user(userId).send(SHOP_NOT_READY_MESSAGE)
 			}
 
+			const balance = (await getUserBalanceMinutes(userId)) ?? 0
 			const text = 'the current prizes are here! this list might be updated throughout the event :3'
 			return userBot.user(userId).send({
 				text,
@@ -62,10 +71,16 @@ export const keywordHandlers: KeywordHandler[] = [
 							...items.map((i) =>
 								R.section(
 									R.text(i.name).bold(),
-									` (${(i.priceMinutes / 60).toFixed(1)}h): ${i.description}`,
+									` (${formatHours(i.priceMinutes)}h): ${i.description}`,
 								),
 							),
 						),
+					),
+					context(`your balance: ${formatHours(balance)}h`),
+					actions(
+						select(...items.map((i) => option(`${i.name} (${formatHours(i.priceMinutes)}h)`, i.id)))
+							.id(SHOP_BUY_ACTION)
+							.placeholder('buy something...'),
 					),
 				),
 			})

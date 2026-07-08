@@ -91,6 +91,8 @@ export const shopItems = pgTable('shop_items', {
 	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 })
 
+export const purchaseStatus = pgEnum('purchase_status', ['pending', 'refunded', 'fulfilled'])
+
 export const purchases = pgTable(
 	'purchases',
 	{
@@ -102,9 +104,10 @@ export const purchases = pgTable(
 			.notNull()
 			.references(() => shopItems.id),
 		priceMinutes: integer().notNull(),
+		status: purchaseStatus().notNull().default('pending'),
 		createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 	},
-	(table) => [index().on(table.userId), index().on(table.shopItemId)],
+	(table) => [index().on(table.userId), index().on(table.shopItemId), index().on(table.status)],
 )
 
 export const auditLog = pgTable(

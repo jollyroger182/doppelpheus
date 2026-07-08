@@ -44,6 +44,11 @@ import {
 import { buildProjectsView } from '../user/views/projects'
 import { buildHomeView, isAdmin } from './home'
 import { getUploadedFileId } from '../../queries/uploaded-file'
+import { SHOP_BUY_ACTION } from '../user/keywords'
+import { getShopItemById } from '../../queries/shop-item'
+import { debitUserBalanceIfSufficient, getUserBalanceMinutes } from '../../queries/user'
+import { createPurchase } from '../../queries/purchase'
+import { purchaseConfirmModalView, purchaseInsufficientModalView } from './modals/shop-purchase'
 
 bot.on('action:button.link_hca', async (event) => {
 	logAudit('auth.hca.clicked', event.event.user.id, { state: event.value })
@@ -353,6 +358,86 @@ bot.on('action:button.admin.user_balance.adjust', async (event) => {
 	if ('error' in form) return
 	await applyUserBalanceAdjustment(userId, form)
 	await republishHome(userId)
+})
+
+bot.on(`action:static_select.${SHOP_BUY_ACTION}`, async (event) => {
+	const userId = event.event.user.id
+	const itemId = (event as any).event?.actions?.[0]?.selected_option?.value as string | undefined
+	if (!itemId) return
+
+	const item = await getShopItemById(itemId)
+	if (!item || !item.enabled) return
+
+	const balance = (await getUserBalanceMinutes(userId)) ?? 0
+	if (balance < item.priceMinutes) {
+		await event.respond.modal(purchaseInsufficientModalView(item, balance))
+		return
+	}
+
+	const modal = await event.respond.modal(purchaseConfirmModalView(item, balance))
+	try {
+		await modal.wait.timeout(5 * 60_000).submit()
+	} catch {
+		return
+	}
+
+	const newBalance = await debitUserBalanceIfSufficient(userId, item.priceMinutes)
+	if (newBalance === null) {
+		logAudit('shop.purchase.race_insufficient', userId, {
+			itemId,
+			priceMinutes: item.priceMinutes,
+		})
+		return
+	}
+
+	const purchase = await createPurchase({
+		userId,
+		shopItemId: item.id,
+		priceMinutes: item.priceMinutes,
+	})
+
+	logAudit('shop.purchase.created', userId, {
+		purchaseId: purchase.id,
+		itemId: item.id,
+		priceMinutes: item.priceMinutes,
+		newBalanceMinutes: newBalance,
+	})
+
+	const { PURCHASES_CHANNEL } = process.env
+	if (PURCHASES_CHANNEL) {
+		try {
+			const hours = (item.priceMinutes / 60).toFixed(1).replace(/\.0$/, '')
+			await bot.channel(PURCHASES_CHANNEL).send({
+				text: `<@${userId}> bought *${item.name}* (${hours}h)`,
+				blocks: blocks(
+					section(
+						`:shopping_bags: <@${userId}> bought *${item.name}* — *${hours}h*\n_${item.description}_`,
+					),
+					context(`purchase id: \`${purchase.id}\``, `status: \`${purchase.status}\``),
+				),
+			})
+		} catch (err) {
+			console.error('failed to notify purchases channel', err)
+		}
+	} else {
+		console.warn('PURCHASES_CHANNEL not configured; skipping purchase notification')
+	}
+
+	try {
+		const hours = (item.priceMinutes / 60).toFixed(1).replace(/\.0$/, '')
+		const remaining = (newBalance / 60).toFixed(1).replace(/\.0$/, '')
+		await userBot.user(userId).send({
+			text: `you bought ${item.name}!`,
+			blocks: blocks(
+				section(
+					`you bought *${item.name}* for *${hours}h*!\nan org will follow up to fulfill your prize soon :3`,
+				),
+				context(`remaining balance: *${remaining}h*`),
+			),
+		})
+	} catch (err) {
+		console.error('failed to DM participant about purchase', err)
+	}
 })
 
 bot.on('action:button.admin.upload_file', async (event) => {

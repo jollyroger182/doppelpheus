@@ -54,6 +54,18 @@ export async function adjustUserBalance(userId: string, deltaMinutes: number): P
 	return row?.balanceMinutes ?? null
 }
 
+export async function debitUserBalanceIfSufficient(
+	userId: string,
+	minutes: number,
+): Promise<number | null> {
+	const [row] = await db
+		.update(users)
+		.set({ balanceMinutes: sql`${users.balanceMinutes} - ${minutes}` })
+		.where(and(eq(users.id, userId), sql`${users.balanceMinutes} >= ${minutes}`))
+		.returning({ balanceMinutes: users.balanceMinutes })
+	return row?.balanceMinutes ?? null
+}
+
 export async function getUserLastShipAt(userId: string): Promise<Date | null> {
 	const [row] = await db
 		.select({ decidedAt: projectReviews.decidedAt })
