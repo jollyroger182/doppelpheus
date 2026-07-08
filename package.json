@@ -5,7 +5,8 @@
 		"dev": "bun --watch --no-clear-screen ./index.ts",
 		"db:push": "drizzle-kit push",
 		"db:generate": "drizzle-kit generate",
-		"db:migrate": "drizzle-kit migrate"
+		"db:migrate": "drizzle-kit migrate",
+		"backfill:airtable-users": "bun ./src/scripts/backfill-airtable-users.ts"
 	},
 	"devDependencies": {
 		"@types/bun": "latest",

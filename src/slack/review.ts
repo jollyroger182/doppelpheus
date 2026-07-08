@@ -1,6 +1,6 @@
 import type { AnyBlock } from '@slack/types'
 import { actions, blocks, button, context, divider, header, image, section } from 'slack.ts'
-import { syncApprovedProjectToAirtable } from '../airtable'
+import { syncApprovedProjectToAirtable, syncUserLoopsToAirtable } from '../airtable'
 import { formatSeconds, getHackatimeProjectStats } from '../hackatime'
 import { logAudit } from '../queries/audit-log'
 import { getEventStartDate } from '../queries/config'
@@ -213,6 +213,11 @@ async function decideAndNotify(
 				projectId: project.id,
 				error: err instanceof Error ? err.message : String(err),
 			})
+		}
+		try {
+			await syncUserLoopsToAirtable(project.user)
+		} catch (err) {
+			console.error('airtable user sync failed', err)
 		}
 	}
 

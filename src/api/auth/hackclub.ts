@@ -1,3 +1,4 @@
+import { syncUserLoopsToAirtable } from '../../airtable'
 import { logAudit } from '../../queries/audit-log'
 import { getAuthAttemptWithUserById, markAuthAttemptUsed } from '../../queries/auth-attempt'
 import { upsertUser } from '../../queries/user'
@@ -56,8 +57,14 @@ export async function handleHCACallback(req: Request) {
 		return redirectToDM(user.id)
 	}
 
-	await upsertUser({ id: user.id, hcaToken: data.access_token })
+	const updatedUser = await upsertUser({ id: user.id, hcaToken: data.access_token })
 	logAudit('auth.hca.linked', user.id, { hca_id: profile.identity.id })
+
+	try {
+		await syncUserLoopsToAirtable(updatedUser)
+	} catch (err) {
+		console.error('airtable user sync failed', err)
+	}
 
 	await sendHackatimeAuthMessage(user.id)
 

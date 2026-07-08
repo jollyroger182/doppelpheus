@@ -14,6 +14,7 @@ The program itself is administered by a selfbot — this codebase — which impe
 - `bun run db:generate` — generate a Drizzle migration from `src/db/schema.ts` into `./drizzle`.
 - `bun run db:migrate` — apply migrations against `DATABASE_URL`.
 - `bun run db:push` — push schema directly (dev shortcut, bypasses migrations).
+- `bun run backfill:airtable-users` — one-off backfill: iterates every user with an `hcaToken`, resolves email via HCA, and upserts the `Users` Airtable table on `Email`. Safe to re-run.
 
 There is no test runner, linter, or build script configured. `.prettierrc` exists for formatting only.
 
@@ -29,7 +30,7 @@ The codebase uses [`slack.ts`](https://www.npmjs.com/package/slack.ts) to constr
 
 - **`app`** — the **primary participant-facing selfbot**. Uses user-session auth (`xoxc` + `xoxd` cookie) with the **RTM receiver** to listen for DMs to the Doppel mascot user account and drive the onboarding conversation. Also used to open DM channels via `conversations.open`. This is the "selfbot" the program is built on.
 - **`bot`** — the **actual bot user** (`xoxb`) using the **fetch receiver** with signing-secret verification. Handles `/slack/events` HTTP webhook traffic (events, interactivity, button actions) and is used for admin-only tasks that require real bot capabilities. Not the primary participant channel.
-- **`userBot`** — a user token (`xoxp`) with no receiver, used purely to *send* DMs on behalf of the Doppel user (e.g. delivering the OAuth CTA buttons that Slack requires be sent by a user, not a bot).
+- **`userBot`** — a user token (`xoxp`) with no receiver, used purely to _send_ DMs on behalf of the Doppel user (e.g. delivering the OAuth CTA buttons that Slack requires be sent by a user, not a bot).
 
 `bot.receiver.fetch(req)` is wired into `Bun.serve` at `/slack/events` in `index.ts`. Listeners in `src/slack/bot/listeners.ts` (admin/bot events + button-action handlers) and `src/slack/user/listeners.ts` (participant DM handling on the selfbot) are registered at import time via side-effect imports in `index.ts`.
 
@@ -69,6 +70,23 @@ State passed through OAuth is a UUID row in the `auth_attempts` table (`src/quer
 
 Both callbacks end by redirecting to `https://hackclub.enterprise.slack.com/archives/<dm-channel-id>` (see `redirectToDM` in `src/utils.ts`).
 
+### Airtable sync
+
+Airtable is a downstream sync target — all writes live in `src/airtable.ts` and are fire-and-forget with try-catch from their callers (errors are logged, never propagated to the participant flow). Two targets:
+
+- `syncApprovedProjectToAirtable(project, review)` — appends a row to the `YSWS Project Submission` table when a review is approved. Called from `decideAndNotify` in `src/slack/review.ts`.
+- `syncUserLoopsToAirtable(user)` — upserts a row in the `Users` table keyed on `Email` (via Airtable's `performUpsert.fieldsToMergeOn`), writing `Loops - doppelSignUpAt` (earliest `auth_attempts.createdAt` for the user) and `Loops - doppelLastShipAt` (latest approved `project_reviews.decidedAt`). Triggered from two places:
+  - `handleHCACallback` in `src/api/auth/hackclub.ts`, right after `upsertUser` — this is the first point where the participant's email is known.
+  - `decideAndNotify` in `src/slack/review.ts`, on approval — refreshes the last-ship timestamp.
+
+The timestamp/aggregate helpers (`getAllUsers`, `getUserSignupAt`, `getUserLastShipAt`) live in `src/queries/user.ts` — reuse them rather than re-querying, so the runtime hooks and the backfill script share one code path.
+
+Both sync functions no-op when `AIRTABLE_API_KEY` or `AIRTABLE_BASE_ID` are missing, so local dev without Airtable configured works fine.
+
+### One-off scripts
+
+`src/scripts/` holds runnable maintenance scripts — one entrypoint per file with a matching `bun run <name>` alias in `package.json`. Scripts should end with `process.exit(0)` because importing `src/db/index.ts` (or anything that transitively imports it, e.g. `src/airtable.ts`) opens a pg pool that would otherwise keep the process alive. Example: `src/scripts/backfill-airtable-users.ts` iterates every user with an `hcaToken` and calls `syncUserLoopsToAirtable`.
+
 ### Database
 
 Drizzle ORM against Postgres via `drizzle-orm/node-postgres` (`src/db/index.ts`). Schema in `src/db/schema.ts`; relations declared separately in `src/db/relations.ts` using `defineRelations` and passed to `drizzle()` so the query builder can traverse them (e.g. `getUserWithProjectsById`). When adding a table, update both files.
@@ -77,7 +95,7 @@ Migrations live in `./drizzle` and are the source of truth — prefer `db:genera
 
 ### Env vars (see `.env.example`)
 
-Required for boot: `DATABASE_URL`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_XOXC_TOKEN`, `SLACK_XOXD_TOKEN`, `SLACK_XOXP_TOKEN`. `src/slack/client.ts` throws if any are missing. Note: `SLACK_XOXD_TOKEN` must be copied from the cookie header **without URL-decoding**. OAuth flows additionally need `HCA_CLIENT_ID/SECRET`, `HACKATIME_CLIENT_ID/SECRET`, and `EXTERNAL_URL` (the publicly reachable base for callbacks). `ADMIN_API_KEY` gates the `POST /api/welcome` admin endpoint via the `x-api-key` header — that endpoint DMs a given user id from the selfbot to kick off / test the participant conversation.
+Required for boot: `DATABASE_URL`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_XOXC_TOKEN`, `SLACK_XOXD_TOKEN`, `SLACK_XOXP_TOKEN`. `src/slack/client.ts` throws if any are missing. Note: `SLACK_XOXD_TOKEN` must be copied from the cookie header **without URL-decoding**. OAuth flows additionally need `HCA_CLIENT_ID/SECRET`, `HACKATIME_CLIENT_ID/SECRET`, and `EXTERNAL_URL` (the publicly reachable base for callbacks). `ADMIN_API_KEY` gates the `POST /api/welcome` admin endpoint via the `x-api-key` header — that endpoint DMs a given user id from the selfbot to kick off / test the participant conversation. `REVIEWS_CHANNEL` is the Slack channel id where new project submissions are posted for admin review; `submitProjectForReview` bails without it. `AIRTABLE_API_KEY` and `AIRTABLE_BASE_ID` are optional at boot — the Airtable sync functions in `src/airtable.ts` no-op (with a console warning) when either is missing.
 
 ### Slack app manifest
 
@@ -90,6 +108,8 @@ Required for boot: `DATABASE_URL`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `S
 - **New DB table** → update both `src/db/schema.ts` and `src/db/relations.ts`, add a query module under `src/queries/`, then `bun run db:generate` + `bun run db:migrate`.
 - **New OAuth-style flow** → mirror `src/api/auth/hackclub.ts` (create `auth_attempts` row → callback exchanges code → mark used → upsert token → `redirectToDM`). Add the route in `index.ts`.
 - **New Slack scope or event subscription** → update `manifest.json` and reinstall the app.
+- **New Airtable sync target / column** → add or extend a function in `src/airtable.ts` and trigger it fire-and-forget from the domain event that changes the underlying data (mirror the call sites in `handleHCACallback` and `decideAndNotify`). If the write depends on data derivable from Postgres, add a query helper under `src/queries/` and call it from the sync function so the corresponding backfill script can reuse the same code path.
+- **New one-off backfill / maintenance script** → add a file under `src/scripts/`, register a `bun run <name>` alias in `package.json`, and end the script with `process.exit(0)` so the pg pool doesn't keep the process alive.
 
 ---
 

@@ -1,9 +1,10 @@
 import type { Project } from './queries/project'
 import type { ProjectReview } from './queries/project-review'
-import type { User } from './queries/user'
+import { getUserLastShipAt, getUserSignupAt, type User } from './queries/user'
 import { getHCAProfile } from './utils'
 
 const AIRTABLE_TABLE_NAME = 'YSWS Project Submission'
+const AIRTABLE_USERS_TABLE = 'Users'
 
 export async function syncApprovedProjectToAirtable(
 	project: Project & { user: User },
@@ -50,8 +51,7 @@ export async function syncApprovedProjectToAirtable(
 					Birthday: profile.identity.birthday,
 					'Optional - Override Hours Spent':
 						review.hackatimeSeconds / 3600 + (review.hoursAdjustment ?? 0),
-					'Optional - Override Hours Spent Justification':
-						review.justification ?? 'TODO',
+					'Optional - Override Hours Spent Justification': review.justification ?? 'TODO',
 				},
 			}),
 		},
@@ -59,5 +59,50 @@ export async function syncApprovedProjectToAirtable(
 
 	if (!res.ok) {
 		throw new Error(`airtable ${res.status}: ${await res.text()}`)
+	}
+}
+
+export async function syncUserLoopsToAirtable(user: User): Promise<void> {
+	const { AIRTABLE_API_KEY, AIRTABLE_BASE_ID } = process.env
+	if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID) {
+		console.error('airtable user sync skipped because env is not configured')
+		return
+	}
+	if (!user.hcaToken) return
+
+	const profile = await getHCAProfile(user.hcaToken)
+	const email = profile.identity.primary_email
+	if (!email) return
+
+	const [signUpAt, lastShipAt] = await Promise.all([
+		getUserSignupAt(user.id),
+		getUserLastShipAt(user.id),
+	])
+
+	const res = await fetch(
+		`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(AIRTABLE_USERS_TABLE)}`,
+		{
+			method: 'PATCH',
+			headers: {
+				Authorization: `Bearer ${AIRTABLE_API_KEY}`,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				performUpsert: { fieldsToMergeOn: ['Email'] },
+				records: [
+					{
+						fields: {
+							Email: email,
+							'Loops - doppelSignUpAt': signUpAt?.toISOString() ?? null,
+							'Loops - doppelLastShipAt': lastShipAt?.toISOString() ?? null,
+						},
+					},
+				],
+			}),
+		},
+	)
+
+	if (!res.ok) {
+		throw new Error(`airtable users ${res.status}: ${await res.text()}`)
 	}
 }
