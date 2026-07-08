@@ -8,11 +8,15 @@ import {
 	notifyUploadResult,
 	reuploadSubmittedFileAsUser,
 	saveUploadedFileForKey,
+	saveFanartImage,
 	UPLOAD_FILE_ACTION,
 	UPLOAD_FILE_BLOCK,
 	UPLOAD_KEY_ACTION,
 	UPLOAD_KEY_BLOCK,
+	ARTIST_NAME_ACTION,
+	ARTIST_NAME_BLOCK,
 	uploadModalView,
+	uploadFanartModalView,
 } from './admin-upload'
 import { deleteProject } from '../../queries/project'
 import { deleteShopItem, setShopItemEnabled } from '../../queries/shop-item'
@@ -223,6 +227,31 @@ bot.on('action:button.admin.upload_file', async (event) => {
 	try {
 		const result = await reuploadSubmittedFileAsUser(file)
 		await saveUploadedFileForKey(key, result.id, userId)
+		await notifyUploadResult(userId, result)
+	} catch (err) {
+		await notifyUploadError(userId, err)
+	}
+})
+
+bot.on('action:button.admin.upload_fanart', async (event) => {
+	const userId = event.event.user.id
+	if (!isAdmin(userId)) return 
+	const modal = await event.respond.modal(uploadFanartModalView)
+
+	let submission
+	try {
+		submission = await modal.wait.submit()
+	} catch (err) {
+		return
+	}
+
+	const values = submission.values
+	const fileValue = values[UPLOAD_FILE_BLOCK][UPLOAD_FILE_ACTION]
+	const file = fileValue.files[0]!
+	const artistName = values[ARTIST_NAME_BLOCK][ARTIST_NAME_ACTION].value
+	try {
+		const result = await reuploadSubmittedFileAsUser(file)
+		await saveFanartImage(result.id, artistName, userId)
 		await notifyUploadResult(userId, result)
 	} catch (err) {
 		await notifyUploadError(userId, err)

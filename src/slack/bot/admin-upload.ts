@@ -1,6 +1,7 @@
-import { blocks, fileInput, input, option, plain, section, select } from 'slack.ts'
+import { blocks, fileInput, input, option, plain, plainTextInput, section, select } from 'slack.ts'
 import { logAudit } from '../../queries/audit-log'
 import { IMAGE_KEYS, setUploadedFileId, type ImageKey } from '../../queries/uploaded-file'
+import { addFanartImage} from '../../queries/gallery'
 import { bot, userBot } from '../client'
 
 const { SLACK_BOT_TOKEN } = process.env
@@ -10,8 +11,12 @@ export const UPLOAD_FILE_ACTION = 'file'
 export const UPLOAD_KEY_BLOCK = 'upload_key'
 export const UPLOAD_KEY_ACTION = 'key'
 
+export const ARTIST_NAME_BLOCK = 'enter_artist_name'
+export const ARTIST_NAME_ACTION = 'artist_name'
+
 export const uploadModalView = {
 	type: 'modal',
+	callback_id: 'upload_modal',
 	title: plain('upload as doppel').build(),
 	submit: plain('upload').build(),
 	close: plain('cancel').build(),
@@ -25,9 +30,27 @@ export const uploadModalView = {
 	),
 } as const
 
+export const uploadFanartModalView = {
+	type: 'modal',
+	callback_id: 'upload_fanart_modal',
+	title: plain('upload fanart').build(),
+	submit: plain('upload').build(),
+	close: plain('cancel').build(),
+	blocks: blocks(
+		section('upload a new fanart image to the gallery!'),
+		input(fileInput().id(UPLOAD_FILE_ACTION).max(1)).label('file').id(UPLOAD_FILE_BLOCK),
+		input(plainTextInput().id(ARTIST_NAME_ACTION)).label('artistName').hint('who to credit for this fanart :3').id(ARTIST_NAME_BLOCK),
+	),
+} as const
+
 export async function saveUploadedFileForKey(key: ImageKey, fileId: string, userId: string) {
 	logAudit('admin.upload.saved', userId, { fileId, key })
 	await setUploadedFileId(key, fileId)
+}
+
+export async function saveFanartImage(fileId: string, artistName: string, userId: string) {
+	logAudit('admin.upload.fanart', userId, { fileId, artistName })
+	await addFanartImage(fileId, artistName)
 }
 
 interface SubmittedFile {

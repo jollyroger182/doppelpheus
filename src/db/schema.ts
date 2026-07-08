@@ -1,4 +1,4 @@
-import { boolean, index, integer, pgTable, real, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, pgTable, real, text, timestamp, serial, uuid } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
 	id: text().primaryKey(),
@@ -40,6 +40,12 @@ export const uploadedFiles = pgTable('uploaded_files', {
 	key: text().primaryKey(),
 	fileId: text().notNull(),
 	updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+})
+
+export const fanartGallery = pgTable('fanart_gallery', {
+	fileId: text().notNull(),
+	artistName: text().notNull(),
+	createdAt: timestamp({ withTimezone: true}).notNull().defaultNow(),
 })
 
 export const shopItems = pgTable('shop_items', {

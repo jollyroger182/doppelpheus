@@ -3,6 +3,7 @@ import { userBot } from '../client'
 import { FAQ_CANVAS } from '../../consts'
 import { CONFIG_KEYS, isFeatureEnabled } from '../../queries/config'
 import { getEnabledShopItems } from '../../queries/shop-item'
+import { getFanartImages } from '../../queries/gallery'
 import { buildProjectsView } from './views/projects'
 
 const SHOP_NOT_READY_MESSAGE = 'the prizes are not ready yet! please check back later :3'
@@ -22,11 +23,16 @@ export const keywordHandlers: KeywordHandler[] = [
 				text: `hello there human i hear you are in need of help? i'm doppel from <#${MAIN_CHANNEL}> and here's what i can do:`,
 				blocks: blocks(
 					richText(
-						R.section("hello there human i hear you are in need of help? i'm doppel from ", R.channel(MAIN_CHANNEL!), " and here's what i can do:"),
+						R.section(
+							"hello there human i hear you are in need of help? i'm doppel from ",
+							R.channel(MAIN_CHANNEL!),
+							" and here's what i can do:",
+						),
 						R.list(
 							R.section(R.text('projects').bold(), ' to see your projects'),
 							R.section(R.text('prizes').bold(), ' to browse prizes'),
 							R.section(R.text('settings').bold(), ' to change your preferences'),
+							R.section(R.text('friend').bold(), ' to see some secret commands'),
 							R.section(R.text('help').bold(), ' to view this message!'),
 						),
 					),
@@ -72,10 +78,65 @@ export const keywordHandlers: KeywordHandler[] = [
 		},
 	},
 	{
-		keywords: ['blahaj'],
+		keywords: ['friends', 'friend'],
 		send: async (userId) => {
 			return userBot.user(userId).send({
-				text: `<3`,
+				text: `let's be friends!!! here are some secret commands you can try :3`,
+				blocks: blocks(
+					richText(
+						R.section("let's be friends!!! here are some secret commands you can try :3"),
+						R.list(R.section('meow'), R.section(':3'), R.section('fanart')),
+					),
+				),
+			})
+		},
+	},
+	{
+		keywords: ['fanart'],
+		send: async (userId) => {
+			const fanartImages = await getFanartImages()
+
+			return userBot.user(userId).send({
+				text: 'i love my fans aaa',
+				blocks: blocks(richText(R.section('i love my fans aaa'))),
+				...fanartImages.map((img) => ({
+					type: 'image' as const,
+					title: {type: 'plain_text' as const, text: `by ${img.artistName}`},
+					slack_file: {id: img.fileId},
+					alt_text: `fanart by ${img.artistName}`,
+				})),
+			})
+		},
+	},
+	{
+		keywords: ['meow'],
+		send: async (userId) => {
+			return userBot.user(userId).send({
+				text: `miau`,
+			})
+		},
+	},
+	{
+		keywords: [':3'],
+		send: async (userId) => {
+			return userBot.user(userId).send({
+				text: `eeeeeeee`,
+			})
+		},
+	},
+	{
+		keywords: ['doppel'],
+		send: async (userId) => {
+			return userBot.user(userId).send({
+				text: `doppel likes pets!`,
+			})
+		},
+	},
+	{
+		keywords: ['hi', 'hello', 'hey', 'hai'],
+		send: async (userId) => {
+			return userBot.user(userId).send({
+				text: `haiiii >~<`,
 			})
 		},
 	},

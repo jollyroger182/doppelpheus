@@ -101,6 +101,7 @@ export async function buildHomeView(userId: string) {
 			divider(),
 			actions(
 				button(plain(':outbox_tray: upload file as doppel').emoji()).id('admin.upload_file'),
+				button(plain(':doppel-nom: add fanart').emoji()).id('admin.upload_fanart'),
 				button(plain(':arrows_counterclockwise: refresh').emoji()).id('admin.refresh_home'),
 			),
 		),
