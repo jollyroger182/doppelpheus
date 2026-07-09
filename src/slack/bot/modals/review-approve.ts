@@ -12,6 +12,7 @@ export interface JustificationContext {
 	hackatimeHours: number
 	playableUrl: string | null
 	codeUrl: string | null
+	priorApprovedHours: number | null
 }
 
 function formatDate(d: Date): string {
@@ -24,7 +25,17 @@ function buildJustificationTemplate(ctx: JustificationContext): string {
 	const rangeEnd = formatDate(ctx.rangeEnd)
 	const hours = ctx.hackatimeHours.toFixed(1)
 
-	return `Hackatime project list: ${projectList}. Heartbeats analyzed from ${rangeStart} to ${rangeEnd} for ${hours} hours. Heartbeat pattern is consistent with active development. ${hours} hours approved.`
+	const lines = [
+		`Hackatime project list: ${projectList}. Heartbeats analyzed from ${rangeStart} to ${rangeEnd} for ${hours} hours. Heartbeat pattern is consistent with active development. ${hours} hours approved.`,
+	]
+	if (ctx.priorApprovedHours !== null) {
+		const prior = ctx.priorApprovedHours.toFixed(1)
+		const total = (ctx.priorApprovedHours + ctx.hackatimeHours).toFixed(1)
+		lines.push(
+			`This project is an update. ${prior} hours were approved in earlier ship(s); this update adds ${hours} new hours for a running total of ${total} hours.`,
+		)
+	}
+	return lines.join('\n')
 }
 
 export function approveReasonModalView(reviewId: string, ctx: JustificationContext) {

@@ -15,6 +15,7 @@ import {
 } from './admin-upload'
 import { deleteProject } from '../../queries/project'
 import {
+	getApprovedHackatimeSecondsForProject,
 	getLatestReviewForProject,
 	getReviewById,
 	getReviewsForProjects,
@@ -230,6 +231,10 @@ bot.on('action:button.review.approve', async (event) => {
 	const rangeStart = (await getEventStartDate()) ?? null
 	const rangeEnd = review?.createdAt ?? new Date()
 	const hackatimeHours = (review?.hackatimeSeconds ?? 0) / 3600
+	const priorApprovedSeconds = project
+		? await getApprovedHackatimeSecondsForProject(project.id)
+		: 0
+	const priorApprovedHours = priorApprovedSeconds > 0 ? priorApprovedSeconds / 3600 : null
 
 	const modal = await event.respond.modal(
 		approveReasonModalView(reviewId, {
@@ -239,6 +244,7 @@ bot.on('action:button.review.approve', async (event) => {
 			hackatimeHours,
 			playableUrl: project?.playableUrl ?? null,
 			codeUrl: project?.codeUrl ?? null,
+			priorApprovedHours,
 		}),
 	)
 	let submission
