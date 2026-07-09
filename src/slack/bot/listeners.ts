@@ -14,7 +14,12 @@ import {
 	uploadModalView,
 } from './admin-upload'
 import { deleteProject } from '../../queries/project'
-import { getLatestReviewForProject, getReviewsForProjects } from '../../queries/project-review'
+import {
+	getLatestReviewForProject,
+	getReviewById,
+	getReviewsForProjects,
+} from '../../queries/project-review'
+import { getProjectWithUserById } from '../../queries/project'
 import { deleteShopItem, setShopItemEnabled } from '../../queries/shop-item'
 import { formatSeconds, getHackatimeProjectStats } from '../../hackatime'
 import { CONFIG_KEYS, getEventStartDate, isFeatureEnabled, setConfig } from '../../queries/config'
@@ -220,7 +225,22 @@ bot.on('action:button.review.approve', async (event) => {
 	const reviewId = event.value
 	if (!reviewId) return
 
-	const modal = await event.respond.modal(approveReasonModalView(reviewId))
+	const review = await getReviewById(reviewId)
+	const project = review ? await getProjectWithUserById(review.projectId) : null
+	const rangeStart = (await getEventStartDate()) ?? null
+	const rangeEnd = review?.createdAt ?? new Date()
+	const hackatimeHours = (review?.hackatimeSeconds ?? 0) / 3600
+
+	const modal = await event.respond.modal(
+		approveReasonModalView(reviewId, {
+			hackatimeProjects: project?.hackatimeProjects ?? [],
+			rangeStart,
+			rangeEnd,
+			hackatimeHours,
+			playableUrl: project?.playableUrl ?? null,
+			codeUrl: project?.codeUrl ?? null,
+		}),
+	)
 	let submission
 	try {
 		submission = await modal.wait.timeout(5 * 60_000).submit()

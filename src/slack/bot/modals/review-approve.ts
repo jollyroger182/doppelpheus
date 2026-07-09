@@ -5,7 +5,30 @@ export const APPROVE_JUSTIFICATION_ACTION = 'justification'
 export const APPROVE_HOURS_BLOCK = 'review.approve.hours'
 export const APPROVE_HOURS_ACTION = 'hours'
 
-export function approveReasonModalView(reviewId: string) {
+export interface JustificationContext {
+	hackatimeProjects: string[]
+	rangeStart: Date | null
+	rangeEnd: Date
+	hackatimeHours: number
+	playableUrl: string | null
+	codeUrl: string | null
+}
+
+function formatDate(d: Date): string {
+	return d.toISOString().slice(0, 10)
+}
+
+function buildJustificationTemplate(ctx: JustificationContext): string {
+	const projectList = ctx.hackatimeProjects.length ? ctx.hackatimeProjects.join(', ') : 'TODO'
+	const rangeStart = ctx.rangeStart ? formatDate(ctx.rangeStart) : 'TODO'
+	const rangeEnd = formatDate(ctx.rangeEnd)
+	const hours = ctx.hackatimeHours.toFixed(1)
+
+	return `Hackatime project list: ${projectList}. Heartbeats analyzed from ${rangeStart} to ${rangeEnd} for ${hours} hours. Heartbeat pattern is consistent with active development. ${hours} hours approved.`
+}
+
+export function approveReasonModalView(reviewId: string, ctx: JustificationContext) {
+	const template = buildJustificationTemplate(ctx)
 	return {
 		type: 'modal' as const,
 		private_metadata: reviewId,
@@ -18,6 +41,7 @@ export function approveReasonModalView(reviewId: string) {
 				plainTextInput()
 					.multiline()
 					.id(APPROVE_JUSTIFICATION_ACTION)
+					.default(template)
 					.placeholder('why is this getting approved? (this is sent to airtable so be specific)'),
 			)
 				.label('justification (private)')
