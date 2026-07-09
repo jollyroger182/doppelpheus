@@ -44,7 +44,11 @@ import {
 import { buildProjectsView } from '../user/views/projects'
 import { buildHomeView, isAdmin } from './home'
 import { getUploadedFileId } from '../../queries/uploaded-file'
-import { SETTINGS_ADDRESS_ACTION, SHOP_BUY_ACTION } from '../user/keywords'
+import {
+	buildAddressSettingsMessage,
+	SETTINGS_ADDRESS_ACTION,
+	SHOP_BUY_ACTION,
+} from '../user/keywords'
 import { getShopItemById } from '../../queries/shop-item'
 import {
 	adjustUserBalance,
@@ -479,31 +483,21 @@ bot.on(`action:static_select.${SETTINGS_ADDRESS_ACTION}`, async (event) => {
 	const addressId = (event as any).event?.actions?.[0]?.selected_option?.value as string | undefined
 	if (!addressId) return
 
-	const user = await getUserById(userId)
-	if (!user?.hcaToken) return
-
-	let profile
-	try {
-		profile = await getHCAProfile(user.hcaToken)
-	} catch {
-		return
-	}
-	const match = (profile.identity.addresses ?? []).find((a) => a.id === addressId)
-	if (!match) return
-
 	await setSelectedHcaAddressId(userId, addressId)
 	logAudit('settings.address.updated', userId, { addressId })
 
-	try {
-		await userBot.user(userId).send({
-			text: 'address updated!',
-			blocks: blocks(
-				section(`updated your shipping address to:\n\`\`\`\n${formatHCAAddress(match)}\n\`\`\``),
-			),
+	const refreshed = await buildAddressSettingsMessage(userId)
+	if (refreshed.ok) {
+		try {
+			await event.respond.edit(refreshed.message)
+		} catch (err) {
+			console.error('failed to edit address settings message', err)
+		}
+	} else
+		await event.respond.message({
+			ephemeral: true,
+			text: refreshed.text,
 		})
-	} catch (err) {
-		console.error('failed to DM address confirmation', err)
-	}
 })
 
 bot.on(`action:static_select.${PURCHASE_STATUS_ACTION}`, async (event) => {

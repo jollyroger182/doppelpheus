@@ -12,6 +12,55 @@ export const SHOP_BUY_ACTION = 'shop.buy'
 export const SETTINGS_ADDRESS_ACTION = 'settings.address'
 const formatHours = (minutes: number) => (minutes / 60).toFixed(1).replace(/\.0$/, '')
 
+type AddressMessageResult =
+	| { ok: true; message: { text: string; blocks: any } }
+	| { ok: false; text: string }
+
+export async function buildAddressSettingsMessage(userId: string): Promise<AddressMessageResult> {
+	const user = await getUserById(userId)
+	if (!user?.hcaToken) {
+		return { ok: false, text: 'link your HCA account first! send me any message to get the link.' }
+	}
+	let profile
+	try {
+		profile = await getHCAProfile(user.hcaToken)
+	} catch {
+		return { ok: false, text: "couldn't fetch your HCA profile right now, try again in a bit :(" }
+	}
+	const addresses = profile.identity.addresses ?? []
+	if (!addresses.length) {
+		return {
+			ok: false,
+			text: "you don't have any addresses on file at <https://auth.hackclub.com/addresses|hack club auth>! add one there and try again :3",
+		}
+	}
+	const current = pickHCAAddress(profile, user.selectedHcaAddressId)
+	const label = (a: (typeof addresses)[number]) =>
+		`${a.line_1}${a.line_2 ? ', ' + a.line_2 : ''}, ${a.city}`.slice(0, 75)
+	const addressOptions = addresses.map((a) => option(label(a), a.id))
+	const picker = select(...addressOptions)
+		.id(SETTINGS_ADDRESS_ACTION)
+		.placeholder('pick an address')
+	if (current) picker.default(current.id)
+	const text = 'pick the address prizes should be shipped to!'
+	return {
+		ok: true,
+		message: {
+			text,
+			blocks: blocks(
+				section(text),
+				current
+					? section(`current:\n\`\`\`\n${formatHCAAddress(current)}\n\`\`\``)
+					: section('_no address selected yet_'),
+				actions(picker),
+				context(
+					'addresses come from <https://auth.hackclub.com/addresses|hack club auth>. update them there if needed.',
+				),
+			),
+		},
+	}
+}
+
 const SHOP_NOT_READY_MESSAGE = 'the prizes are not ready yet! please check back later :3'
 
 const { MAIN_CHANNEL } = process.env
@@ -129,49 +178,12 @@ export const keywordHandlers: KeywordHandler[] = [
 	{
 		keywords: ['settings', 'setting', 'address'],
 		send: async (userId) => {
-			const user = await getUserById(userId)
-			if (!user?.hcaToken) {
-				return userBot
-					.user(userId)
-					.send('link your HCA account first! send me any message to get the link.')
-			}
-			let profile
-			try {
-				profile = await getHCAProfile(user.hcaToken)
-			} catch {
-				return userBot
-					.user(userId)
-					.send("couldn't fetch your HCA profile right now, try again in a bit :(")
-			}
-			const addresses = profile.identity.addresses ?? []
-			if (!addresses.length) {
-				return userBot
-					.user(userId)
-					.send(
-						"you don't have any addresses on file at <https://auth.hackclub.com/addresses|hack club auth>! add one there and try again :3",
-					)
-			}
-			const current = pickHCAAddress(profile, user.selectedHcaAddressId)
-			const label = (a: (typeof addresses)[number]) =>
-				`${a.line_1}${a.line_2 ? ', ' + a.line_2 : ''}, ${a.city}`.slice(0, 75)
-			const addressOptions = addresses.map((a) => option(label(a), a.id))
-			const picker = select(...addressOptions)
-				.id(SETTINGS_ADDRESS_ACTION)
-				.placeholder('pick an address')
-			if (current) picker.default(current.id)
-			const text = 'pick the address prizes should be shipped to!'
+			const result = await buildAddressSettingsMessage(userId)
+			if (!result.ok) return userBot.user(userId).send(result.text)
 			return userBot.user(userId).send({
-				text,
-				blocks: blocks(
-					section(text),
-					current
-						? section(`current:\n\`\`\`\n${formatHCAAddress(current)}\n\`\`\``)
-						: section('_no address selected yet_'),
-					actions(picker),
-					context(
-						'addresses come from <https://auth.hackclub.com/addresses|hack club auth>. update them there if needed.',
-					),
-				),
+				ephemeral: true,
+				user: userId,
+				...result.message,
 			})
 		},
 	},
