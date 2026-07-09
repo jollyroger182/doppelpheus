@@ -6,7 +6,8 @@
 		"db:push": "drizzle-kit push",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
-		"backfill:airtable-users": "bun ./src/scripts/backfill-airtable-users.ts"
+		"backfill:airtable-users": "bun ./src/scripts/backfill-airtable-users.ts",
+		"undo:approval": "bun ./src/scripts/undo-approval.ts"
 	},
 	"devDependencies": {
 		"@types/bun": "latest",

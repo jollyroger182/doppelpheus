@@ -35,7 +35,7 @@ function projectFieldBlocks(project: Project, hackatimeSeconds: number): AnyBloc
 	]
 }
 
-function buildReviewMessage(project: Project, review: ProjectReview) {
+export function buildReviewMessage(project: Project, review: ProjectReview) {
 	return {
 		text: `new project submitted by <@${project.userId}>: ${project.name}`,
 		blocks: [
