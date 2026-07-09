@@ -85,7 +85,7 @@ function renderProject(
 							text: {
 								type: 'plain_text',
 								text: state.shipped
-									? `re-ship ${project.name}? make sure you fixed the issues that your reviewer mentioned!`
+									? `re-ship ${project.name}? make sure you updated your readme to reflect what you updated and/or fixed!`
 									: `ship ${project.name}? make sure you filled out your project details correctly!`,
 							},
 							confirm: {

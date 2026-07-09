@@ -48,6 +48,7 @@ function buildReviewMessage(project: Project, review: ProjectReview) {
 				actions(
 					button('approve').style('primary').id('review.approve').value(review.id),
 					button('reject').style('danger').id('review.reject').value(review.id),
+					button('joe').url(`https://joe.fraud.hackclub.com/profile/${project.userId}`),
 				),
 			),
 		],
