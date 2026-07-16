@@ -143,6 +143,15 @@ export async function submitProjectForReview(
 	const posted = await bot.channel(REVIEWS_CHANNEL).send(buildReviewMessage(project, review))
 	if (posted) {
 		await attachReviewMessage(review.id, REVIEWS_CHANNEL, posted.ts)
+		if (project.screenshotFileId) {
+			try {
+				const info = await bot.request('files.info', { file: project.screenshotFileId })
+				const permalink = (info.file as { permalink?: string } | undefined)?.permalink
+				if (permalink) await posted.reply(`${permalink}`)
+			} catch (err) {
+				console.error('failed to reply with screenshot link', err)
+			}
+		}
 	}
 	logAudit('project.submitted', userId, { projectId, reviewId: review.id })
 	return { ok: true, reviewId: review.id }
