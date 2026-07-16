@@ -6,6 +6,7 @@ export const APPROVE_HOURS_BLOCK = 'review.approve.hours'
 export const APPROVE_HOURS_ACTION = 'hours'
 
 export interface JustificationContext {
+	hackatimeId: string
 	hackatimeProjects: string[]
 	rangeStart: Date | null
 	rangeEnd: Date
@@ -25,17 +26,14 @@ function buildJustificationTemplate(ctx: JustificationContext): string {
 	const rangeEnd = formatDate(ctx.rangeEnd)
 	const hours = ctx.hackatimeHours.toFixed(1)
 
-	const lines = [
-		`Hackatime project list: ${projectList}. Heartbeats analyzed from ${rangeStart} to ${rangeEnd} for ${hours} hours. Heartbeat pattern is consistent with active development. ${hours} hours approved.`,
-	]
+	let justification = `User has ${hours}h tracked on Hackatime (user Slack ID: ${ctx.hackatimeId}; projects: ${projectList}) from ${rangeStart} to ${rangeEnd}`
 	if (ctx.priorApprovedHours !== null) {
-		const prior = ctx.priorApprovedHours.toFixed(1)
-		const total = (ctx.priorApprovedHours + ctx.hackatimeHours).toFixed(1)
-		lines.push(
-			`This project is an update. ${prior} hours were approved in earlier ship(s); this update adds ${hours} new hours for a running total of ${total} hours.`,
-		)
+		const previousHours = ctx.priorApprovedHours.toFixed(1)
+		justification += ` (excluding ${previousHours}h spent on previous submissions of the same project)`
 	}
-	return lines.join('\n')
+	justification += `. Heartbeat pattern is consistent with active development. Commit history shows TODO commits, which is consistent with this scope.\nThis project is TODO. User is TODO-level because they have TODO per GitHub repos.\nThis project is deflated from ${hours}h to TODO h because TODO, and the user has prior experience with this type of project.`
+
+	return justification
 }
 
 export function approveReasonModalView(reviewId: string, ctx: JustificationContext) {

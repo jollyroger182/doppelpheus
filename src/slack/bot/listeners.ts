@@ -231,13 +231,12 @@ bot.on('action:button.review.approve', async (event) => {
 	const rangeStart = (await getEventStartDate()) ?? null
 	const rangeEnd = review?.createdAt ?? new Date()
 	const hackatimeHours = (review?.hackatimeSeconds ?? 0) / 3600
-	const priorApprovedSeconds = project
-		? await getApprovedHackatimeSecondsForProject(project.id)
-		: 0
+	const priorApprovedSeconds = project ? await getApprovedHackatimeSecondsForProject(project.id) : 0
 	const priorApprovedHours = priorApprovedSeconds > 0 ? priorApprovedSeconds / 3600 : null
 
 	const modal = await event.respond.modal(
 		approveReasonModalView(reviewId, {
+			hackatimeId: project?.userId ?? 'TODO',
 			hackatimeProjects: project?.hackatimeProjects ?? [],
 			rangeStart,
 			rangeEnd,
