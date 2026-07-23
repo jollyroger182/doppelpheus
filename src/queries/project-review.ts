@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '../db'
-import { projectReviews, reviewStatus } from '../db/schema'
+import { projectReviews, projects, reviewStatus } from '../db/schema'
 
 export type ProjectReview = typeof projectReviews.$inferSelect
 export type ReviewStatus = (typeof reviewStatus.enumValues)[number]
@@ -45,6 +45,15 @@ export async function getApprovedHackatimeSecondsForProject(projectId: number): 
 		.from(projectReviews)
 		.where(and(eq(projectReviews.projectId, projectId), eq(projectReviews.status, 'approved')))
 	return Number(rows[0]?.total ?? 0)
+}
+
+export async function getUserIdsWithApprovedProject(): Promise<string[]> {
+	const rows = await db
+		.selectDistinct({ userId: projects.userId })
+		.from(projects)
+		.innerJoin(projectReviews, eq(projectReviews.projectId, projects.id))
+		.where(eq(projectReviews.status, 'approved'))
+	return rows.map((row) => row.userId)
 }
 
 export async function getReviewsForProjects(projectIds: number[]) {
