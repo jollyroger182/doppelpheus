@@ -66,6 +66,7 @@ import {
 import {
 	attachPurchaseMessage,
 	createPurchase,
+	getPendingPurchasesForShopItem,
 	getPurchaseById,
 	setPurchaseStatus,
 	type PurchaseStatus,
@@ -78,6 +79,11 @@ import {
 	PURCHASE_STATUS_ACTION,
 	PURCHASE_VIEW_ADDRESS_ACTION,
 } from './modals/shop-purchase'
+import {
+	purchaseAddressModalView,
+	purchaseListModalView,
+	PURCHASE_LIST_VIEW_ADDRESS_ACTION,
+} from './modals/purchase-list'
 import { formatHCAAddress, getHCAProfile, pickHCAAddress } from '../../utils'
 
 bot.on('action:button.link_hca', async (event) => {
@@ -644,6 +650,70 @@ bot.on(`action:button.${PURCHASE_VIEW_ADDRESS_ACTION}`, async (event) => {
 		text: `<@${purchase.userId}>'s shipping address`,
 		blocks: blocks(section(`<@${purchase.userId}>'s shipping address:`), section(body)),
 		ephemeral: true,
+	})
+})
+
+bot.on('action:button.admin.purchases.view', async (event) => {
+	const userId = event.event.user.id
+	if (!isAdmin(userId)) return
+	const itemId = event.value
+	if (!itemId) return
+
+	const item = await getShopItemById(itemId)
+	if (!item) return
+
+	const purchaseRows = await getPendingPurchasesForShopItem(itemId)
+	const rows = await Promise.all(
+		purchaseRows.map(async (purchase) => {
+			let email: string | null = null
+			if (purchase.user?.hcaToken) {
+				try {
+					const profile = await getHCAProfile(purchase.user.hcaToken)
+					email = profile.identity.primary_email
+				} catch (err) {
+					console.error('failed to fetch purchaser email', err)
+				}
+			}
+			return { purchase, email }
+		}),
+	)
+
+	await event.respond.modal(purchaseListModalView(item, rows))
+})
+
+bot.on(`action:button.${PURCHASE_LIST_VIEW_ADDRESS_ACTION}`, async (event) => {
+	const adminId = event.event.user.id
+	if (!isAdmin(adminId)) return
+	const purchaseId = event.value
+	if (!purchaseId) return
+
+	const purchase = await getPurchaseById(purchaseId)
+	if (!purchase) return
+
+	const target = await getUserById(purchase.userId)
+	logAudit('shop.purchase.address_viewed', adminId, {
+		purchaseId,
+		userId: purchase.userId,
+	})
+
+	let body: string
+	if (!target?.hcaToken) {
+		body = 'user has no HCA token linked.'
+	} else {
+		try {
+			const profile = await getHCAProfile(target.hcaToken)
+			const address = pickHCAAddress(profile, target.selectedHcaAddressId)
+			body = address
+				? `\`\`\`\n${formatHCAAddress(address)}\n\`\`\``
+				: 'user has no addresses on file at hack club auth.'
+		} catch (err) {
+			body = 'failed to fetch address from hack club auth.'
+		}
+	}
+
+	await bot.request('views.push', {
+		trigger_id: event.event.trigger_id,
+		view: purchaseAddressModalView(purchase.userId, body),
 	})
 })
 

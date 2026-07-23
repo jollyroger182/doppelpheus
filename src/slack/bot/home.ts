@@ -1,6 +1,7 @@
 import { actions, blocks, button, divider, header, plain, R, richText, section } from 'slack.ts'
 import { getRecentAuditLog } from '../../queries/audit-log'
 import { CONFIG_KEYS, getEventStartDate, isFeatureEnabled } from '../../queries/config'
+import { getPendingPurchaseCountsByShopItem } from '../../queries/purchase'
 import { getAllShopItems, type ShopItem } from '../../queries/shop-item'
 import { getProgramStats } from '../../queries/stats'
 
@@ -36,6 +37,16 @@ function renderShopItems(items: ShopItem[]) {
 	})
 }
 
+function renderShopPurchases(items: ShopItem[], counts: Map<string, number>) {
+	if (!items.length) return [section('_no shop items yet_')]
+	return items.map((item) => {
+		const count = counts.get(item.id) ?? 0
+		return section(
+			`*${item.name}*\n*${count}* pending purchase${count === 1 ? '' : 's'}`,
+		).accessory(button('view purchasers').id('admin.purchases.view').value(item.id))
+	})
+}
+
 export async function buildHomeView(userId: string) {
 	if (!isAdmin(userId)) {
 		return {
@@ -44,13 +55,17 @@ export async function buildHomeView(userId: string) {
 		}
 	}
 
-	const [stats, shopEnabled, shopItemList, recentLog, eventStart] = await Promise.all([
-		getProgramStats(),
-		isFeatureEnabled(CONFIG_KEYS.shopEnabled),
-		getAllShopItems(),
-		getRecentAuditLog(10),
-		getEventStartDate(),
-	])
+	const [stats, shopEnabled, shopItemList, recentLog, eventStart, purchaseCounts] =
+		await Promise.all([
+			getProgramStats(),
+			isFeatureEnabled(CONFIG_KEYS.shopEnabled),
+			getAllShopItems(),
+			getRecentAuditLog(10),
+			getEventStartDate(),
+			getPendingPurchaseCountsByShopItem(),
+		])
+
+	const purchaseCountByItem = new Map(purchaseCounts.map((row) => [row.shopItemId, row.count]))
 
 	const eventStartLabel = eventStart
 		? `<!date^${Math.floor(eventStart.getTime() / 1000)}^{date_short} {time}|${eventStart.toISOString()}>`
@@ -89,6 +104,9 @@ export async function buildHomeView(userId: string) {
 					.id('admin.shop_item.add'),
 				button(plain(':moneybag: adjust user balance').emoji()).id('admin.user_balance.adjust'),
 			),
+			divider(),
+			header('shop purchases (pending)'),
+			...renderShopPurchases(shopItemList, purchaseCountByItem),
 			divider(),
 			header('recent activity'),
 			recentLog.length
